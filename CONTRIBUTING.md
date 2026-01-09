@@ -47,10 +47,13 @@ pytest -q
 - Keep changes minimal (one feature/bugfix per commit).
 
 ## Commit style
-Use short, scoped commit messages:
-- ch0: add health endpoint
-- ingest: load local docs
-- rag: add chunking + retrieval
+Use short, scoped commit messages by category:
+- ingest: data ingestion scripts
+- feat: new user-visible feature
+- fix: bug fix
+- refactor: code restructure (no behavior change)
+- docs: documentation only
+- chore: dependencies, tooling, formatting
 
 ## Configuration & secrets
 - Do not commit secrets (API keys).
