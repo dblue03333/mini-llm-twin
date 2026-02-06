@@ -21,7 +21,7 @@ if not TITLE_PROPERTY_NAME:
     print("Missing TITLE_PROPERTY_NAME in .env")
     sys.exit(1)
 
-NOTION_VERSION = os.environ.get("NOTION_VERSION", "2025-09-03")
+NOTION_VERSION = os.environ.get("NOTION_VERSION", "2022-06-28")
 if not NOTION_VERSION:
     print("Missing NOTION_VERSION in .env")
     sys.exit(1)
@@ -217,3 +217,13 @@ for page in all_pages:
 
     write_jsonl(BRONZE_PATH, bronze_record)
     write_jsonl(SILVER_PATH, silver_record)
+
+# State Management
+#schema: pages_last_edited: {page_id: last_edited_time}
+# last_sync: ISO timestamp
+# rules:
+### not page_id -> process
+### last_edited_time differs -> procese
+### else -> skip
+state = load_state(STATE_PATH)
+pages_last_edited = state.get("pages_last_edited", {})
