@@ -21,8 +21,12 @@ env/
 # ---- Environment / secrets ----
 .env
 .env.*
+!.env.example
+.envrc
+.direnv/
 *.key
 *.pem
+.codex
 
 # ---- OS junk ----
 .DS_Store
