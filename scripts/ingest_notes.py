@@ -2,6 +2,10 @@
 #{id: '', source: '', created_at: '', text: '', metadata: {'path':, type :'note'},  }
 
 # IMPORTS
+import argparse
+import time
+import logging
+
 import json
 import hashlib
 import re
@@ -50,6 +54,28 @@ if not NOTION_DB_ID:
     print("Missing NOTION_DB_ID in .env")
     sys.exit(1)
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--page-size', type=int, default=5)
+parser.add_argument('--max-pages', type=int, default=None)
+parser.add_argument('--force', action='store_true')
+args = parser.parse_args()
+
+#Time out and retry constant 
+HTTP_TIMEOUT = 30
+MAX_RETRIES = 3
+
+#Log defining
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s | %(message)s',
+)
+log = logging.getLogger(__name__)
+
+#Log value counts
+fetched = 0
+processed = 0
+skipped = 0
+errors = 0
 
 #NORMALIZE TEXT
 def normalize_text(text: str) -> str:
@@ -129,15 +155,52 @@ def write_jsonl(path: Path, record: dict) -> None:
 
 
 def load_state(path: Path) -> dict:
-    if not path.exists():
+    if not path.exists() or path.stat().st_size == 0:
         return {}
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_state(path: Path, state: dict) -> None:
-    with path.open("w", encoding="utf-8") as f:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
+    tmp_path.replace(path)
+
+def request_json(method: str, url: str, *, headers: dict, json_body: dict | None = None):
+    for attempt in range(MAX_RETRIES):
+        # try: 
+        r = requests.request(method, url,headers=headers, json=json_body, timeout=HTTP_TIMEOUT)
+        status = r.status_code
+        # except requests.RequestException:
+        #     # backoff + retry
+        #     continue
+        # raise RuntimeError
+
+
+        if status in (401, 403):
+            log.error("auth error status=%s body=%s", status, r.text[:200])
+            sys.exit(1)
+
+        if status == 429:
+            sleep_s = 2 ** attempt
+            log.warning("rate limited (429), sleeping %ss", sleep_s)
+            time.sleep(sleep_s)
+            continue
+
+        if status >= 500:
+            sleep_s = 2 ** attempt
+            log.warning("server error status=%s, retrying in %ss", status, sleep_s)
+            time.sleep(sleep_s)
+            continue
+
+        r.raise_for_status()
+        return r.json()
+        # try r.json()
+        # raise RuntimeError...
+
+    log.error("failed after retries url=%s", url)
+    raise RuntimeError(f"request failed after {MAX_RETRIES} retries: {url}")
 
 
 link = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
@@ -147,47 +210,63 @@ has_more = True
 start_cursor = None
 
 while has_more:
-    payload = {'page_size':5}
+    payload = {'page_size': args.page_size}
     if start_cursor:
         payload['start_cursor'] = start_cursor
     
     try:
-        r = requests.post(link, headers=header, json=payload)
-        r.raise_for_status()
-        data = r.json()
+        # r = requests.post(link, headers=header, json=payload)
+        # r.raise_for_status()
+        # data = r.json()
+        data = request_json("POST", link, headers=header, json_body=payload)
     except requests.HTTPError as e:
         status = e.response.status_code if e.response else "unknown"
         body = (e.response.text[:200] if e.response and e.response.text else "")
-        print(f"HTTP error: {e} | status={status} | body={body}")
+        log.error(f"HTTP error: {e} | status={status} | body={body}")
+        errors += 1
         break
     except ValueError as e:
-        print(f"JSON error: {e} | body={r.text[:200]}")
+        log.error(f"JSON error: {e}")
+        errors += 1
         break
-
     all_pages.extend(data.get('results', []))
     has_more = data.get('has_more',False)
     start_cursor = data.get('next_cursor')
 
+fetched = len(all_pages)
+log.info("fetched=%d", fetched)
+
 # PAGE ID
 # page_id = r.json().get('results', [])[0]['id']
+processed_pages = 0
+notion_state = load_state(STATE_PATH)
+pages_last_edited = notion_state.get('pages_last_edited', {})
 for page in all_pages:
     page_id = page['id']
     title = "".join(item.get("plain_text","") for item in page['properties'][TITLE_PROPERTY_NAME]['title'])
     created_time = page['created_time']
     last_edited_time = page['last_edited_time']
+    if (not args.force) and page_id in pages_last_edited and pages_last_edited[page_id] == last_edited_time:
+        skipped += 1
+        log.info('skipped page_id=%s', page_id)
+        continue
     # GETTING PAGE CONTENT
 
     page_link = f'https://api.notion.com/v1/blocks/{page_id}/children'
     try:
-        page_r = requests.get(page_link, headers=header)
-        page_r.raise_for_status()
-        blocks = page_r.json().get("results", [])
+        # page_r = requests.get(page_link, headers=header)
+        # page_r.raise_for_status()
+        # blocks = page_r.json(). get("results", [])
+        data = request_json("GET", page_link, headers=header)
+        blocks = data.get('results', [])
     except requests.HTTPError as e:
         status = e.response.status_code if e.response else "unknown"
-        print(f"Block HTTP error for page {page_id}: {status}")
+        log.error(f"Block HTTP error for page {page_id}: {status}")
+        errors += 1
         continue
     except ValueError as e:
-        print(f"Block JSON error for page {page_id}: {e}")
+        log.error(f"Block JSON error for page {page_id}: {e}")
+        errors += 1
         continue
 
     #GETTING LINES BY LINES IN BLOCK
@@ -217,6 +296,13 @@ for page in all_pages:
 
     write_jsonl(BRONZE_PATH, bronze_record)
     write_jsonl(SILVER_PATH, silver_record)
+    processed += 1
+    pages_last_edited[page_id] = last_edited_time
+    processed_pages += 1
+    if args.max_pages is not None and processed_pages >= args.max_pages:
+        break
+
+    
 
 # State Management
 #schema: pages_last_edited: {page_id: last_edited_time}
@@ -225,5 +311,9 @@ for page in all_pages:
 ### not page_id -> process
 ### last_edited_time differs -> procese
 ### else -> skip
-state = load_state(STATE_PATH)
-pages_last_edited = state.get("pages_last_edited", {})
+
+notion_state['pages_last_edited'] = pages_last_edited
+notion_state["last_sync"] = datetime.now(timezone.utc).isoformat()
+save_state(STATE_PATH, notion_state)
+
+log.info("processed=%d skipped=%d errors=%d", processed, skipped, errors)
