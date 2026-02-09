@@ -1,164 +1,75 @@
-# ai-twin-lite
+﻿# mini-llm-twin
 
-A simplified, educational version of an LLM Twin system inspired by the **LLM Engineers Handbook**.  
-This project is designed to be internship-ready, demonstrating my skills in **data engineering**(chapter 3),  
-**feature pipelines**(chapter 1 & 4), **vector databases**(chapter 4 & 9), and **RAG (Retrieval-Augmented Generation)**(chapter 9).
+Learning + portfolio repo: a small "LLM Twin" pipeline in Python.
 
----
+Current focus: data engineering first (crawl/sync sources -> Bronze/Silver), then load into storage (MongoDB), then build RAG features on top.
 
-## 🚀 Overview
+## What Works Today
 
-`ai-twin-lite` is a small, clean implementation of a modern RAG pipeline:
+Notion ingestion (Bronze -> Silver -> State) in `scripts/ingest_notes.py`:
+- Queries a Notion database (pagination supported)
+- Fetches each page's blocks
+- Writes:
+  - Bronze: `data/bronze/notion_raw.jsonl` (raw-ish text + metadata)
+  - Silver: `data/silver/documents.jsonl` (normalized text + stable schema)
+  - State: `data/state/notion_state.json` (incremental sync using `last_edited_time`)
 
-1. **Data Pipeline**  
-   - Crawl or load documents  
-   - Clean and normalize text  
-   - Convert to structured document format
+## Quick Start
 
-<!-- 2. **Feature Pipeline**  
-   - Chunk documents  
-   - Generate embeddings  
-   - Store in a vector database (Qdrant)
+1) Create and activate a venv
 
-3. **RAG Inference Pipeline**  
-   - Query expansion  
-   - Self-querying (metadata extraction)  
-   - Vector search  
-   - Cross-encoder reranking  
-   - Return top relevant chunks for an LLM to answer
-
-4. **Deployment**  
-   - FastAPI backend or Gradio UI -->
-
-This repo is intentionally lightweight so I can learn, iterate, and showcase my ML engineering skills.
-
----
-
-## 📁 Project Structure
-<!-- │  ├─ feature_pipeline/
-│  │  ├─ chunking.py
-│  │  ├─ embeddings.py
-│  │  └─ vector_store.py
-│  │
-│  ├─ rag_pipeline/
-│  │  ├─ query_expansion.py
-│  │  ├─ self_query.py
-│  │  ├─ reranker.py
-│  │  └─ rag_pipeline.py
-│  │
-│  └─ config.py
-│
-├─ app/
-│  ├─ api.py
-│  └─ ui.py
-│
-├─ data/
-│  ├─ raw/
-│  ├─ clean/
-│  └─ embedded/
-│
-├─ notebooks/ -->
-```
-ai-twin-lite/
-├─ src/
-│  ├─ data_pipeline/
-│  │  ├─ crawler.py
-│  │  ├─ cleaning.py
-│  │  └─ models.py
-│  │
-
-│
-├─ requirements.txt
-└─ README.md
-```
-
----
-
-## 🔧 Installation
-
+PowerShell:
 ```bash
-git clone https://github.com/dblue03333/ai-twin-lite.git
-cd ai-twin-lite
-python3 -m venv venv
-source venv/bin/activate   # or Windows: venv\Scripts\activate
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+CMD:
+```bash
+py -m venv .venv
+.\.venv\Scripts\activate.bat
+```
+
+2) Install dependencies
+```bash
+py -m pip install -U pip
 pip install -r requirements.txt
 ```
 
----
+3) Configure environment variables
+- Create `.env` (do not commit it). See `.env.example`.
 
-## 🧱 Pipelines
-
-### **1. Data Pipeline**
-Implemented in `src/data_pipeline/`:
-
-- `crawler.py` → simple web/data loader  
-- `cleaning.py` → remove noise, normalize text  
-- `models.py` → Pydantic `ArticleDocument`
-
-<!-- ### **2. Feature Pipeline**
-Implemented in `src/feature_pipeline/`:
-
-- `chunking.py` → split documents into chunks  
-- `embeddings.py` → convert chunks into vectors  
-- `vector_store.py` → save vectors to Qdrant  
-
-### **3. RAG Pipeline**
-Implemented in `src/rag_pipeline/`:
-
-- `query_expansion.py` → generate expanded queries  
-- `self_query.py` → extract metadata from query  
-- `reranker.py` → cross-encoder ranking  
-- `rag_pipeline.py` → full inference flow   -->
-
----
-
-## ▶️ Running the Feature Pipeline
-<!-- 
+4) Run Notion ingestion
 ```bash
-python feature_pipeline.py
+python scripts/ingest_notes.py
+python scripts/ingest_notes.py --page-size 2 --max-pages 1
+python scripts/ingest_notes.py --force
 ```
 
-(Or create a dedicated runner later.) -->
+## Outputs
 
----
-<!-- 
-## ▶️ Running the RAG Inference API
+Bronze (`data/bronze/notion_raw.jsonl`):
+- `id`, `created_time`, `last_edited_time`, `title`, `text`
 
-```bash
-uvicorn app.api:app --reload
-``` -->
+Silver (`data/silver/documents.jsonl`):
+- `id`, `type`, `text`, `created_at`, `updated_at`, `metadata`
 
----
+State (`data/state/notion_state.json`):
+- `pages_last_edited` map and `last_sync`
 
-## 🌐 Deployment Targets
+## Project Structure (high level)
 
-- **Hugging Face Spaces (Gradio UI)**
-- **Render (FastAPI app)**
-- **Vercel (Serverless Python)**
+```text
+mini-llm-twin/
+  app/                  # FastAPI entrypoints (later)
+  scripts/              # runnable scripts (ingestion lives here)
+  src/                  # pipeline modules (data/feature/rag)
+  data/                 # local outputs (bronze/silver/state)
+```
 
----
+## Roadmap
 
-## 📚 Inspired By
-
-This project is based on concepts from the  
-**LLM Engineers Handbook – Feature Pipelines, RAG Inference, and Data Engineering chapters**.
-
----
-
-## 💼 For Your Resume
-
-**Tech Used:**  
-Python, Pydantic, SentenceTransformers, Qdrant, FastAPI, Gradio
-
-**Highlights:**  
-- Designed and implemented an end‑to‑end RAG system  
-- Built modular feature + inference pipelines  
-- Deployed a lightweight LLM Twin for real usage  
-- Demonstrated ML engineering, data engineering, and LLM application skills  
-
----
-
-## 🤝 Contributions
-
-This is a learning-focused repo—feel free to extend or build your own version of an AI Twin.
-
+- Add block pagination for long Notion pages (`blocks/{page_id}/children` can be paginated)
+- Add more sources (GitHub, LinkedIn) behind a shared connector pattern
+- Load Silver into MongoDB
+- Build chunking + embeddings + retrieval (RAG)

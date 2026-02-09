@@ -13,6 +13,51 @@ This repo is a learning + portfolio project. The goal is to keep changes small, 
 - I am currently building the **Notion crawler** and **normalizing data first**.
 - Next, I will likely create an **abstract connector/base class** to orchestrate the flow across multiple sources.
 
+### Notion ingestion status (scripts/ingest_notes.py)
+What exists now:
+- End-to-end Notion ingestion: DB query (pagination) -> blocks fetch -> Bronze JSONL + Silver JSONL.
+- Env config: `NOTION_TOKEN`, `NOTION_DB_ID`, `TITLE_PROPERTY_NAME` (default "Date"), `NOTION_VERSION` (default "2022-06-28").
+- Standardized paths and folder creation:
+  - `data/bronze/notion_raw.jsonl`
+  - `data/silver/documents.jsonl`
+  - `data/state/notion_state.json`
+
+Bronze output (raw-ish JSONL):
+- Fields: `id` (page_id), `created_time`, `last_edited_time`, `title`, `text` (joined block text).
+
+Silver output (clean schema JSONL):
+- Fields: `id`, `type="article"`, `text` (normalized), `created_at`, `updated_at`, `metadata={source="notion", title}`.
+
+State management (incremental runs):
+- `data/state/notion_state.json` schema:
+  - `pages_last_edited: {page_id: last_edited_time}`
+  - `last_sync` (UTC ISO timestamp)
+- Skip logic: if state has same `last_edited_time` for `page_id`, skip; otherwise process.
+- State is updated only after successful Bronze + Silver writes.
+- State saves atomically: write `.tmp` then replace.
+
+Reliability & dev experience:
+- CLI args: `--page-size`, `--max-pages` (debug cap), `--force` (ignore state).
+- Logging: INFO/ERROR with counts (`fetched`, `processed`, `skipped`, `errors`).
+- HTTP helper `request_json()`:
+  - timeout + retry/backoff on 429 and 5xx
+  - retry on network errors (`requests.RequestException`)
+  - fail-fast on 401/403
+  - JSON decode errors -> RuntimeError
+  - other 4xx -> RuntimeError
+
+How to run:
+```bash
+python scripts/ingest_notes.py
+python scripts/ingest_notes.py --page-size 2 --max-pages 1
+python scripts/ingest_notes.py --force
+```
+
+Known gaps / next steps (optional):
+- Handle block pagination if `blocks/{page_id}/children` returns `has_more=true`.
+- Add `--log-level` and log "processed page_id=...".
+- Add small unit tests for `normalize_text()` and `block_to_text()`.
+
 ---
 
 ## Pipeline (project architecture)
