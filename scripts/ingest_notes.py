@@ -168,39 +168,53 @@ def save_state(path: Path, state: dict) -> None:
     tmp_path.replace(path)
 
 def request_json(method: str, url: str, *, headers: dict, json_body: dict | None = None):
+    last_exc: Exception | None = None
     for attempt in range(MAX_RETRIES):
-        # try: 
-        r = requests.request(method, url,headers=headers, json=json_body, timeout=HTTP_TIMEOUT)
-        status = r.status_code
-        # except requests.RequestException:
-        #     # backoff + retry
-        #     continue
-        # raise RuntimeError
+        try:
+            r = requests.request(
+                method,
+                url,
+                headers=headers,
+                json=json_body,
+                timeout=HTTP_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            last_exc = e
+            sleep_s = 2 ** attempt
+            log.warning("request error, retrying in %ss: %s %s (%s)", sleep_s, method, url, e)
+            time.sleep(sleep_s)
+            continue
 
+        status = r.status_code
 
         if status in (401, 403):
-            log.error("auth error status=%s body=%s", status, r.text[:200])
+            log.error("auth error status=%s method=%s url=%s body=%s", status, method, url, r.text[:200])
             sys.exit(1)
 
         if status == 429:
             sleep_s = 2 ** attempt
-            log.warning("rate limited (429), sleeping %ss", sleep_s)
+            log.warning("rate limited (429), sleeping %ss: %s %s", sleep_s, method, url)
             time.sleep(sleep_s)
             continue
 
         if status >= 500:
             sleep_s = 2 ** attempt
-            log.warning("server error status=%s, retrying in %ss", status, sleep_s)
+            log.warning("server error status=%s, retrying in %ss: %s %s", status, sleep_s, method, url)
             time.sleep(sleep_s)
             continue
 
-        r.raise_for_status()
-        return r.json()
-        # try r.json()
-        # raise RuntimeError...
+        if status >= 400:
+            log.error("http error status=%s method=%s url=%s body=%s", status, method, url, r.text[:200])
+            raise RuntimeError(f"http {status} for {method} {url}")
 
-    log.error("failed after retries url=%s", url)
-    raise RuntimeError(f"request failed after {MAX_RETRIES} retries: {url}")
+        try:
+            return r.json()
+        except ValueError as e:
+            log.error("json decode error method=%s url=%s body=%s", method, url, r.text[:200])
+            raise RuntimeError(f"invalid json for {method} {url}") from e
+
+    log.error("failed after retries method=%s url=%s", method, url)
+    raise RuntimeError(f"request failed after {MAX_RETRIES} retries: {method} {url}") from last_exc
 
 
 link = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
@@ -215,18 +229,9 @@ while has_more:
         payload['start_cursor'] = start_cursor
     
     try:
-        # r = requests.post(link, headers=header, json=payload)
-        # r.raise_for_status()
-        # data = r.json()
         data = request_json("POST", link, headers=header, json_body=payload)
-    except requests.HTTPError as e:
-        status = e.response.status_code if e.response else "unknown"
-        body = (e.response.text[:200] if e.response and e.response.text else "")
-        log.error(f"HTTP error: {e} | status={status} | body={body}")
-        errors += 1
-        break
-    except ValueError as e:
-        log.error(f"JSON error: {e}")
+    except RuntimeError as e:
+        log.error("%s", e)
         errors += 1
         break
     all_pages.extend(data.get('results', []))
@@ -259,13 +264,8 @@ for page in all_pages:
         # blocks = page_r.json(). get("results", [])
         data = request_json("GET", page_link, headers=header)
         blocks = data.get('results', [])
-    except requests.HTTPError as e:
-        status = e.response.status_code if e.response else "unknown"
-        log.error(f"Block HTTP error for page {page_id}: {status}")
-        errors += 1
-        continue
-    except ValueError as e:
-        log.error(f"Block JSON error for page {page_id}: {e}")
+    except RuntimeError as e:
+        log.error("block fetch failed page_id=%s (%s)", page_id, e)
         errors += 1
         continue
 
