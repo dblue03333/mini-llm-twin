@@ -120,6 +120,27 @@ def join_rich_text(rich_text):
     return "".join(t.get("plain_text", "") for t in rich_text)
 
 
+def extract_page_title(page: dict, configured_property_name: str) -> str:
+    """Return a best-effort page title without crashing on property type mismatches."""
+    properties = page.get("properties", {})
+
+    configured_prop = properties.get(configured_property_name)
+    if isinstance(configured_prop, dict):
+        if configured_prop.get("type") == "title":
+            return join_rich_text(configured_prop.get("title", []))
+        log.warning(
+            "configured title property is not type=title (name=%s, type=%s); falling back",
+            configured_property_name,
+            configured_prop.get("type"),
+        )
+
+    for prop in properties.values():
+        if isinstance(prop, dict) and prop.get("type") == "title":
+            return join_rich_text(prop.get("title", []))
+
+    return "Untitled"
+
+
 def block_to_text(block):
     prefix = {
         "heading_1": "# ",
@@ -248,7 +269,7 @@ notion_state = load_state(STATE_PATH)
 pages_last_edited = notion_state.get('pages_last_edited', {})
 for page in all_pages:
     page_id = page['id']
-    title = "".join(item.get("plain_text","") for item in page['properties'][TITLE_PROPERTY_NAME]['title'])
+    title = extract_page_title(page, TITLE_PROPERTY_NAME)
     created_time = page['created_time']
     last_edited_time = page['last_edited_time']
     if (not args.force) and page_id in pages_last_edited and pages_last_edited[page_id] == last_edited_time:
