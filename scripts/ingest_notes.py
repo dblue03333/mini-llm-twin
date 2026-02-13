@@ -242,6 +242,7 @@ link = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
 
 all_pages = []
 has_more = True
+
 start_cursor = None
 
 while has_more:
