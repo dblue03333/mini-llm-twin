@@ -36,6 +36,7 @@ DATA_DIR = PROJECT_ROOT/'data'
 BRONZE_PATH = DATA_DIR / 'bronze' / 'notion_raw.jsonl'
 SILVER_PATH = DATA_DIR / 'silver' / 'documents.jsonl'
 STATE_PATH = DATA_DIR / "state" / "notion_state.json"
+INGEST_RUN = DATA_DIR / "state" / "ingest_run_manifest.json"
 
 #preventing no missing folder
 BRONZE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -242,7 +243,6 @@ link = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
 
 all_pages = []
 has_more = True
-
 start_cursor = None
 
 while has_more:
@@ -268,6 +268,15 @@ log.info("fetched=%d", fetched)
 processed_pages = 0
 notion_state = load_state(STATE_PATH)
 pages_last_edited = notion_state.get('pages_last_edited', {})
+run_info = {
+    "run_id": datetime.now(timezone.utc).isoformat(),
+    "started_at": datetime.now(timezone.utc).isoformat(),
+    "status": "running",
+    "fetched": 0,
+    "processed": 0,
+    "skipped": 0,
+    "errors": 0,
+}
 for page in all_pages:
     page_id = page['id']
     title = extract_page_title(page, TITLE_PROPERTY_NAME)
@@ -278,6 +287,7 @@ for page in all_pages:
         log.info('skipped page_id=%s', page_id)
         continue
     # GETTING PAGE CONTENT
+
 
     page_link = f'https://api.notion.com/v1/blocks/{page_id}/children'
     try:
@@ -324,7 +334,14 @@ for page in all_pages:
     if args.max_pages is not None and processed_pages >= args.max_pages:
         break
 
-    
+#update to current run_info?? how
+run_info.update({
+    "finished_at": datetime.now(timezone.utc).isoformat(),
+    "status": "success",
+    "processed": processed,
+    "skipped": skipped,
+    "errors": errors,
+})
 
 # State Management
 #schema: pages_last_edited: {page_id: last_edited_time}
@@ -337,5 +354,6 @@ for page in all_pages:
 notion_state['pages_last_edited'] = pages_last_edited
 notion_state["last_sync"] = datetime.now(timezone.utc).isoformat()
 save_state(STATE_PATH, notion_state)
+save_state(INGEST_RUN, run_info)
 
 log.info("processed=%d skipped=%d errors=%d", processed, skipped, errors)
