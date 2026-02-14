@@ -21,7 +21,7 @@ Run ingest_notes.py end-to-end and the data in file json repeated 4 times, that
 
 ## Changes
 
-- [ ]  Add a run manifest/checkpoint file
+- [x]  Add a run manifest/checkpoint file
 - [ ]  Make writes transactional-ish per run (temp files then swap).
 - [ ]  Move truth to Mongo upserts ({source,id} unique) so reruns are idempotent.
 - [ ]  Add integrity check at startup (warn/fail if state/data mismatch).
