@@ -1,60 +1,78 @@
 # Development Workflow
 
-This project uses a simple production-style workflow: keep `main` stable, ship in small steps, and review changes through pull requests.
+This repo follows a production-style workflow: stable `main`, short-lived branches, small PRs, and clear rollback paths.
 
 ## Branch Strategy
 
-- `main` is always deployable.
-- Create short-lived branches per task:
+- `main` is always releasable.
+- Use short-lived branches by scope:
   - `feat/<scope>`
   - `fix/<scope>`
   - `refactor/<scope>`
   - `docs/<scope>`
   - `chore/<scope>`
-- Example branch names:
-  - `feat/notion-block-pagination`
+- Example:
+  - `feat/mongo-loader-mvp`
+  - `feat/notion-ingest-hardening`
   - `fix/title-property-fallback`
-  - `feat/mongo-upsert-loader`
+
+### Parallel Branches
+
+- Two short-lived branches can exist at the same time if scopes are independent.
+- Keep one branch per logical change.
+- Merge priority branch first, then sync the other branch from `main`.
 
 ## Ticket To Merge Flow
 
-1. Pick one ticket with a small scope.
-2. Create a branch from latest `main`.
-3. Implement and test locally.
-4. Open a PR to `main` using the PR template.
-5. Keep PR small and focused.
-6. Squash merge after checks/review pass.
-7. Delete the branch.
+1. `git checkout main`
+2. `git pull`
+3. `git checkout -b <type/scope>`
+4. Implement only one logical change.
+5. Validate locally with reproducible commands.
+6. Open PR using `.github/pull_request_template.md`.
+7. Squash merge after review/checks.
+8. Delete branch after merge.
 
 ## Pull Request Rules
 
 - One logical change per PR.
-- Include:
-  - Problem statement
-  - What changed
-  - Evidence (logs/tests/screenshots if relevant)
-  - Risk and rollback note
+- Required in PR body:
+  - Problem
+  - Scope (`In scope` / `Out of scope`)
+  - Validation evidence (exact commands + observed result)
+  - Data/Behavior impact
+  - Risk and rollback plan
 - If behavior changes, update docs in the same PR.
 
 ## Commit Message Style
 
-Use concise, scoped commit messages:
+- `ingest: add run manifest for ingestion run tracking`
+- `fix: make Notion title extraction resilient`
+- `feat: add mongodb silver loader scaffold`
+- `docs: update mvp scope and workflow`
 
-- `ingest: add Notion block children pagination`
-- `fix: handle missing title property in Notion pages`
-- `feat: add MongoDB silver upsert loader`
-- `docs: add MVP scope and success metrics`
+## Python Execution Rule
+
+This project uses package-style imports (`from src...`), so run modules from repo root:
+
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+```
+
+Why: running file paths directly can fail with `ModuleNotFoundError: No module named 'src'`.
+
+## Secrets and Data Safety
+
+- Never commit `.env`.
+- Use `.env.example` for variable names only.
+- Treat exposed credentials as compromised and rotate immediately.
+- Keep local artifacts in `data/` and do not commit generated JSONL/state files.
 
 ## Quality Gate (Minimum)
 
 Before opening PR:
 
-1. Script runs end-to-end for affected flow.
-2. No obvious crash path on missing env/config.
-3. Logs show meaningful counts and failures.
-4. Documentation updated when behavior changed.
-
-## Release Note
-
-For now, release directly from `main` after merge.
-If release complexity increases later, add `release/*` branches then.
+1. Affected flow runs end-to-end.
+2. Logs include meaningful counters and errors.
+3. Output files/state are verified for expected changes.
+4. Docs/PR notes reflect behavior changes.
