@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mini-llm-twin"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "python-dotenv",
+  "requests",
+  "pymongo[srv]"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

@@ -1,18 +1,35 @@
 ﻿# mini-llm-twin
 
-Learning + portfolio repo: a small "LLM Twin" pipeline in Python.
+Portfolio project: building a small end-to-end LLM Twin system in Python.
 
-Current focus: data engineering first (crawl/sync sources -> Bronze/Silver), then load into storage (MongoDB), then build RAG features on top.
+Current execution order for internship-ready delivery:
+1. Data engineering baseline (`Notion -> Bronze/Silver/State`)
+2. MongoDB warehouse MVP (`Silver -> Mongo upsert`)
+3. Lightweight retrieval/app layer
+4. Deployment
 
-## What Works Today
+## Current Stage (CV Ready Snapshot)
 
-Notion ingestion (Bronze -> Silver -> State) in `scripts/ingest_notes.py`:
-- Queries a Notion database (pagination supported)
-- Fetches each page's blocks
-- Writes:
-  - Bronze: `data/bronze/notion_raw.jsonl` (raw-ish text + metadata)
-  - Silver: `data/silver/documents.jsonl` (normalized text + stable schema)
-  - State: `data/state/notion_state.json` (incremental sync using `last_edited_time`)
+### Done
+
+- Notion ingestion pipeline in `scripts/ingest_notes.py`:
+  - Queries Notion DB with pagination
+  - Fetches page blocks
+  - Writes Bronze (`data/bronze/notion_raw.jsonl`)
+  - Writes Silver (`data/silver/documents.jsonl`)
+  - Maintains incremental state (`data/state/notion_state.json`)
+- Incremental sync using `page_id + last_edited_time`
+- Basic reliability:
+  - retry/backoff for 429/5xx
+  - auth fail-fast for 401/403
+- Development workflow docs and PR template established
+
+### In Progress
+
+- MongoDB warehouse MVP:
+  - project config setup in `src/config.py`
+  - loader scaffold in `src/warehouse/mongodb/load_silver_to_mongodb.py`
+  - packaging setup with `pyproject.toml`
 
 ## Quick Start
 
@@ -24,29 +41,35 @@ py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-CMD:
-```bash
-py -m venv .venv
-.\.venv\Scripts\activate.bat
-```
-
 2) Install dependencies
 ```bash
 py -m pip install -U pip
 pip install -r requirements.txt
 ```
 
+Optional package-mode install:
+```bash
+pip install -e .
+```
+
 3) Configure environment variables
-- Create `.env` (do not commit it). See `.env.example`.
+
+- Create `.env` from `.env.example`
+- Never commit `.env`
 
 4) Run Notion ingestion
 ```bash
-python scripts/ingest_notes.py
-python scripts/ingest_notes.py --page-size 2 --max-pages 1
-python scripts/ingest_notes.py --force
+py scripts/ingest_notes.py
+py scripts/ingest_notes.py --page-size 2 --max-pages 1
+py scripts/ingest_notes.py --force
 ```
 
-## Outputs
+5) Run Mongo loader module (from repo root)
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+```
+
+## Data Contracts
 
 Bronze (`data/bronze/notion_raw.jsonl`):
 - `id`, `created_time`, `last_edited_time`, `title`, `text`
@@ -55,21 +78,28 @@ Silver (`data/silver/documents.jsonl`):
 - `id`, `type`, `text`, `created_at`, `updated_at`, `metadata`
 
 State (`data/state/notion_state.json`):
-- `pages_last_edited` map and `last_sync`
+- `pages_last_edited`, `last_sync`
 
-## Project Structure (high level)
+## Project Structure (Current)
 
 ```text
 mini-llm-twin/
-  app/                  # FastAPI entrypoints (later)
-  scripts/              # runnable scripts (ingestion lives here)
-  src/                  # pipeline modules (data/feature/rag)
-  data/                 # local outputs (bronze/silver/state)
+  app/                        # API app layer (next phase)
+  scripts/                    # runnable entry scripts
+  src/
+    config.py                 # shared runtime config
+    utils/                    # shared IO helpers
+    warehouse/mongodb/        # Mongo loader modules
+  data/                       # local bronze/silver/state artifacts
+  docs/                       # workflow + architecture notes
 ```
 
-## Roadmap
+## Next Milestones
 
-- Add block pagination for long Notion pages (`blocks/{page_id}/children` can be paginated)
-- Add more sources (GitHub, LinkedIn) behind a shared connector pattern
-- Load Silver into MongoDB
-- Build chunking + embeddings + retrieval (RAG)
+1. Finish Mongo loader MVP:
+   - upsert from Silver JSONL
+   - unique index on `{metadata.source, id}`
+   - query indexes on `metadata.source`, `type`, `updated_at`
+2. Add minimal retrieval endpoint
+3. Add simple demo UI
+4. Deploy intern-ready version
