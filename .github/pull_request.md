@@ -17,14 +17,14 @@ The final part of DE, implementing MongoDB as a warehouse before loading into RA
     - MONGODB_URI, database name, collection name in .env / .env.example.
 - [x]  Decide the canonical collection + schema.
     - One collection (e.g. documents) with your current Silver fields: id, type, text, created_at, updated_at, metadata.source, metadata.title.
-- [ ]  Define identity + idempotency rules.
+- [x]  Define identity + idempotency rules.
     - What is the unique key (id alone vs {source, id}), and when to update (compare updated_at).
-- [ ]  Do a small MongoDB slice today:
+- [x]  Do a small MongoDB slice today:
     - Create a loader that upserts from into Mongo.
     - Add the minimal indexes needing for idempotency and retrieval.
-- [ ]  Build the loader/upserter.
+- [x]  Build the loader/upserter.
     - Reads JSONL, validates required fields, upserts, and reports counts.
-- [ ]  Add indexes.
+- [x]  Add indexes.
     - Unique index on the chosen key.
     - Query indexes you’ll actually use soon (at least metadata.source, type, and updated_at).
 - [ ]  Handle data quality and edge cases.

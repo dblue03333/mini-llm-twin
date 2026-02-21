@@ -18,3 +18,9 @@ def save_json(path: Path, data: dict) -> None:
     with tmp_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     tmp_path.replace(path)
+
+def iter_jsonl(path: Path):
+    with path.open('r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                yield json.loads(line)
