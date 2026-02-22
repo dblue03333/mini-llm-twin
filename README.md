@@ -1,4 +1,4 @@
-﻿# mini-llm-twin
+﻿# AITwin / Learning Assistant
 
 Portfolio project: building a small end-to-end LLM Twin system in Python.
 
@@ -8,7 +8,7 @@ Current execution order for internship-ready delivery:
 3. Lightweight retrieval/app layer
 4. Deployment
 
-## Current Stage 
+## Current Stage
 
 ### Done
 
@@ -24,12 +24,19 @@ Current execution order for internship-ready delivery:
   - auth fail-fast for 401/403
 - Development workflow docs and PR template established
 
-### In Progress
+### Done (Phase 2: MongoDB Warehouse MVP)
 
-- MongoDB warehouse MVP:
-  - project config setup in `src/config.py`
-  - loader scaffold in `src/warehouse/mongodb/load_silver_to_mongodb.py`
-  - packaging setup with `pyproject.toml`
+- MongoDB warehouse loader in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
+  - Connects to MongoDB and validates connectivity (`ping`)
+  - Creates indexes for idempotency and retrieval:
+    - unique `{metadata.source, id}`
+    - `metadata.source`, `type`, `updated_at`
+  - Loads Silver JSONL (`data/silver/documents.jsonl`) into MongoDB
+  - Uses idempotent upsert with `updated_at` comparison
+  - Validates required fields and handles malformed JSONL lines
+  - Logs `inserted/updated/skipped/failed` summary counts
+- Shared helpers in `src/utils/io.py` (including `iter_jsonl`)
+- Packaging/config setup for module-based execution (`src/config.py`, `pyproject.toml`)
 
 ## Quick Start
 
@@ -96,10 +103,10 @@ mini-llm-twin/
 
 ## Next Milestones
 
-1. Finish Mongo loader MVP:
-   - upsert from Silver JSONL
-   - unique index on `{metadata.source, id}`
-   - query indexes on `metadata.source`, `type`, `updated_at`
-2. Add minimal retrieval endpoint
+1. Build minimal retrieval layer (RAG-lite MVP)
+   - chunk documents
+   - generate embeddings
+   - retrieve top-k chunks with source attribution
+2. Add minimal API endpoint for query/retrieval
 3. Add simple demo UI
 4. Deploy intern-ready version

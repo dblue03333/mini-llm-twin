@@ -43,6 +43,7 @@ This repo follows a production-style workflow: stable `main`, short-lived branch
   - Data/Behavior impact
   - Risk and rollback plan
 - If behavior changes, update docs in the same PR.
+- For data/warehouse jobs, include idempotency evidence in PR validation (rerun result + count behavior).
 
 ## Commit Message Style
 
@@ -76,3 +77,14 @@ Before opening PR:
 2. Logs include meaningful counters and errors.
 3. Output files/state are verified for expected changes.
 4. Docs/PR notes reflect behavior changes.
+
+## Warehouse Job Validation (Phase 2 Pattern)
+
+For MongoDB loader changes, validate with:
+
+1. `py -m src.warehouse.mongodb.load_silver_to_mongodb`
+2. Rerun same command on unchanged input
+3. Confirm idempotent behavior:
+   - no duplicate logical docs (`{metadata.source, id}`)
+   - rerun is mostly `skipped`
+4. Record summary counts in PR (`inserted/updated/skipped/failed`)

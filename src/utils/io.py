@@ -21,6 +21,12 @@ def save_json(path: Path, data: dict) -> None:
 
 def iter_jsonl(path: Path):
     with path.open('r', encoding='utf-8') as f:
-        for line in f:
+        for line_no, line in enumerate(f, start=1):
             if line.strip():
-                yield json.loads(line)
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    yield {"_error": "invalid_json", 
+                           "_line_no": line_no, 
+                           "_raw_preview": line[:120]}
+

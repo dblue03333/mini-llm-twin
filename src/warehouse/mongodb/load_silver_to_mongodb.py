@@ -2,10 +2,14 @@ from src.config import MONGODB_URI, MONGODB_DB, MONGODB_COLLECTION, SILVER_PATH
 from pymongo import MongoClient
 from src.utils.io import iter_jsonl
 from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+log = logging.getLogger(__name__)
 
 client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
 client.admin.command("ping")  
-# print("MONGODB_DB =", repr(MONGODB_DB))
+log.info("connected db=%s collection=%s", MONGODB_DB, MONGODB_COLLECTION)
 
 db = client[MONGODB_DB]
 collection = db[MONGODB_COLLECTION]
@@ -24,6 +28,15 @@ documents = iter_jsonl(SILVER_PATH)
 failed, inserted, updated, skipped = 0, 0, 0, 0
 for doc in documents:
     try:
+        if doc.get("_error"):
+            failed += 1
+            log.error(
+                "failed line=%s reason=%s preview=%s",
+                doc.get("_line_no"),
+                doc.get("_error"),
+                doc.get("_raw_preview"),
+            )
+            continue
         doc_id = doc.get("id")
         source = doc.get("metadata", {}).get("source")
         if not doc_id or not source:
@@ -38,7 +51,11 @@ for doc in documents:
             incoming_dt = datetime.fromisoformat(incoming_updated_at.replace("Z", "+00:00"))
         except ValueError:
             failed += 1
-            print(f"failed doc_id={doc.get('id')} reason=invalid_updated_at value={incoming_updated_at}")
+            log.error(
+                "failed doc_id=%s reason=invalid_updated_at value=%s",
+                doc.get("id"),
+                incoming_updated_at,
+            )
             continue
         existing = collection.find_one(flt, {"updated_at": 1})#str
         if existing and existing.get("updated_at"):
@@ -52,7 +69,7 @@ for doc in documents:
         text = doc.get('text')
         if not isinstance(text,str) or not text.strip():
             failed += 1
-            print(f"failed doc_id={doc.get('id')} reason=missing_or_empty_text")
+            log.error("failed doc_id=%s reason=missing_or_empty_text", doc.get("id"))
             continue
         res = collection.update_one(flt, {"$set": doc}, upsert=True)
         if res.upserted_id:
@@ -63,7 +80,7 @@ for doc in documents:
             skipped += 1
     except Exception as e:
         failed += 1
-        print(f"failed doc_id={doc.get('id')} error={e}")
+        log.exception("failed doc_id=%s error=%s", doc.get("id"), e)
         continue
-print(f"inserted={inserted} updated={updated} skipped={skipped} failed={failed}")
+log.info("inserted=%d updated=%d skipped=%d failed=%d", inserted, updated, skipped, failed)
     
