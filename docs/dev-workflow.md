@@ -88,3 +88,26 @@ For MongoDB loader changes, validate with:
    - no duplicate logical docs (`{metadata.source, id}`)
    - rerun is mostly `skipped`
 4. Record summary counts in PR (`inserted/updated/skipped/failed`)
+
+## Warehouse Job Validation (Phase 3 Hardening Pattern)
+
+For reliability-hardening changes (dry-run/observability), include:
+
+1. `py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3`
+2. `py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run`
+3. `py -m src.warehouse.mongodb.load_silver_to_mongodb` (normal mode)
+4. Rerun normal mode on unchanged input to confirm idempotency
+
+PR evidence should show:
+- dry-run `would_insert/would_update/would_skip/failed`
+- normal summary `inserted/updated/skipped/failed`
+- start/end logs include run metadata (`mode`, `file`, `limit`, `db/collection`, `duration`)
+
+## Future-Proofing Rule (Before RAG Phase)
+
+Before implementing retrieval/RAG, document storage decisions in docs/PR notes:
+
+1. Where chunks will be stored (`chunks` collection)
+2. Where embeddings will be stored (on chunks for MVP)
+3. How chunk records reference canonical documents
+4. How tombstoned/deleted source docs will be excluded from retrieval
