@@ -1,15 +1,30 @@
 ## Summary
 
-MongoDB warehouse MVP
+Phase 2 (MongoDB warehouse MVP): implement a Silver-to-Mongo loader with idempotent upsert, indexes, validation, and run logging.
 
 ## Problem
 
-The final part of DE, implementing MongoDB as a warehouse before loading into RAG architeture.
+- Silver data exists in documents.jsonl but is not loaded into a warehouse yet.
+
+- Need a repeatable Mongo load step for intern-ready end-to-end pipeline.
+
+- Need idempotent reruns to avoid duplicate logical documents.
 
 ## Scope
 
-- In scope:.env.example (MONGODB_URI, MONGODB_DB, MONGODB_COLLECTION)
-- Out of scope: RAG, Web UI, Deploy, Extra DE refactors unrelated to Mongo loader
+- In scope:
+    - load_silver_to_mongodb.py
+    - io.py (iter_jsonl malformed JSON handling)
+    - config.py
+    - pyproject.toml
+    - .env.example (Mongo env vars)
+    - requirements.txt (if updated)
+    - README.md / dev-workflow.md (if you include docs in this PR)
+- Out of scope: 
+    - Notion block pagination / ingest hardening
+    - RAG retrieval/chunking
+    - Deployment
+    - Tombstones/delete sync strategy
 
 ## Changes
 
@@ -27,34 +42,40 @@ The final part of DE, implementing MongoDB as a warehouse before loading into RA
 - [x]  Add indexes.
     - Unique index on the chosen key.
     - Query indexes you’ll actually use soon (at least metadata.source, type, and updated_at).
-- [ ]  Handle data quality and edge cases.
+- [x]  Handle data quality and edge cases.
     - Missing fields, empty text, invalid timestamps, duplicates in JSONL, very large docs.
-- [ ]  Mongo loader MVP
+- [x]  Mongo loader MVP
 
 ## Validation
 
-List exact commands or steps you ran.
-
 ```bash
-# example
-python scripts/ingest_notes.py --page-size 2 --max-pages 1
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+py -m src.warehouse.mongodb.load_silver_to_mongodb
 ```
+
+Observed behavior:
+- MongoDB connection and `ping` succeeded.
+- Index creation is safe on reruns.
+- Rerun on unchanged input showed idempotent behavior (example: `inserted=0 updated=0 skipped=29 failed=0`).
 
 ## Data/Behavior Impact
 
 - [ ] No behavior change
-- [ ] Behavior change (describe)
+- [x] Behavior change (adds Phase 2 MongoDB warehouse load step from `data/silver/documents.jsonl`)
 - [ ] Data schema/output change (describe)
 
 ## Risk and Rollback
 
-- Risk level: low / medium / high
+- Risk level: low
 - Rollback plan:
+  - Revert this PR to remove MongoDB loader/config changes.
+  - Drop MongoDB collection/indexes created by this phase if test data rollback is needed.
+  - No rollback required for Notion Bronze/Silver generation logic.
 
 ## Checklist
 
-- [ ] PR is one logical change
-- [ ] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, etc.)
-- [ ] Commit message follows project style
-- [ ] No secrets added
-- [ ] Logs/errors are clear for debugging
+- [x] PR is one logical change (Phase 2 MongoDB warehouse MVP)
+- [x] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, etc.)
+- [x] Commit message follows project style
+- [ ] No secrets added (verify before merge)
+- [x] Logs/errors are clear for debugging

@@ -13,6 +13,30 @@ This repo is a learning + portfolio project. The goal is to keep changes small, 
 - I am currently building the **Notion crawler** and **normalizing data first**.
 - Next, I will likely create an **abstract connector/base class** to orchestrate the flow across multiple sources.
 
+### MongoDB warehouse status (Phase 2)
+What exists now:
+- MongoDB Silver loader MVP in `src/warehouse/mongodb/load_silver_to_mongodb.py`
+- Connect + `ping` check before loading
+- Index creation:
+  - unique `{metadata.source, id}`
+  - query indexes on `metadata.source`, `type`, `updated_at`
+- JSONL streaming load from `data/silver/documents.jsonl`
+- Idempotent upsert using `{metadata.source, id}` + `updated_at` comparison
+- Data quality checks:
+  - malformed JSONL line handling (`iter_jsonl`)
+  - missing fields / empty text / invalid timestamps
+- Run summary logging with counts: `inserted`, `updated`, `skipped`, `failed`
+
+How to run (Windows PowerShell, from repo root):
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+```
+
+Phase 2 acceptance checks (MVP):
+- First run loads Silver docs into MongoDB
+- Rerun on unchanged input is idempotent (no duplicate logical docs)
+- Logs show stable summary counts and failures are visible
+
 ### Notion ingestion status (scripts/ingest_notes.py)
 What exists now:
 - End-to-end Notion ingestion: DB query (pagination) -> blocks fetch -> Bronze JSONL + Silver JSONL.
@@ -182,3 +206,4 @@ large unrelated changes in one commit
 Do not commit secrets (API keys/tokens).
 Use a local .env file for secrets.
 Ensure .env is included in .gitignore.
+If a credential is exposed in logs/screenshots/chat, rotate it immediately.
