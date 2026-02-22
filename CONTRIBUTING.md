@@ -37,6 +37,52 @@ Phase 2 acceptance checks (MVP):
 - Rerun on unchanged input is idempotent (no duplicate logical docs)
 - Logs show stable summary counts and failures are visible
 
+### MongoDB reliability hardening (Phase 3)
+What exists now (hardening in progress):
+- `--dry-run` mode in `src/warehouse/mongodb/load_silver_to_mongodb.py`
+  - validates and classifies documents without MongoDB writes
+  - skips index creation in dry-run mode (read-only behavior)
+- `--limit` debug mode for subset processing
+- Improved observability:
+  - start log includes `run_id`, mode, file path, db/collection, limit
+  - end log includes processed count, summary counts, duration
+  - failure logs include line/doc context and reason
+- Tombstone-ready loader writes active defaults for present docs:
+  - `is_deleted=false`, `deleted_at=null`, `deleted_reason=null`
+
+How to run (Phase 3 validation):
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+```
+
+Phase 3 smoke-test expectations:
+- Dry-run mode reports `would_insert` / `would_update` / `would_skip` / `failed`
+- Dry-run does not write to MongoDB
+- Normal rerun on unchanged input remains idempotent (mostly `skipped`)
+- Logs include enough context to retry/debug failures
+
+Future-proofing decisions (documented approach):
+- Keep `documents` as the canonical normalized source collection
+- Add a separate `chunks` collection for chunked text + chunk metadata
+- Store embeddings on `chunks` for MVP (simpler than a separate embeddings collection)
+- Each chunk should reference the source document using stable logical identity:
+  - `document_ref.source`
+  - `document_ref.id`
+  - optional `document_mongo_id`
+
+Delete/tombstone strategy (design only, implementation later):
+- Use soft deletes/tombstones (do not hard delete immediately)
+- Planned fields on `documents`:
+  - `is_deleted` (bool)
+  - `deleted_at` (UTC ISO string or null)
+  - `deleted_reason` (string or null)
+- Retrieval should exclude tombstoned docs by default
+- Tombstoning should happen during future source reconciliation (compare current source IDs vs stored docs)
+- Current loader behavior already supports future tombstoning by explicitly reactivating documents seen in the current source load.
+
 ### Notion ingestion status (scripts/ingest_notes.py)
 What exists now:
 - End-to-end Notion ingestion: DB query (pagination) -> blocks fetch -> Bronze JSONL + Silver JSONL.

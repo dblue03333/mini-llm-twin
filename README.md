@@ -38,6 +38,20 @@ Current execution order for internship-ready delivery:
 - Shared helpers in `src/utils/io.py` (including `iter_jsonl`)
 - Packaging/config setup for module-based execution (`src/config.py`, `pyproject.toml`)
 
+### In Progress (Phase 3: Reliability Hardening)
+
+- MongoDB loader hardening in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
+  - `--dry-run` mode (read/validate/classify without writes)
+  - `--limit` for fast subset validation
+  - improved observability:
+    - start/end logs with mode, file, db/collection, run_id
+    - failure logs with line/doc context
+    - duration + processed count in summary
+  - tombstone-ready write behavior for active source docs (`is_deleted=false`, delete fields cleared)
+- Next hardening items:
+  - smoke-test procedure documentation
+  - future-proofing decisions (chunks/embeddings storage + tombstones)
+
 ## Quick Start
 
 1) Create and activate a venv
@@ -76,6 +90,12 @@ py scripts/ingest_notes.py --force
 py -m src.warehouse.mongodb.load_silver_to_mongodb
 ```
 
+6) Dry-run / subset validation (Phase 3)
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
+```
+
 ## Data Contracts
 
 Bronze (`data/bronze/notion_raw.jsonl`):
@@ -104,8 +124,8 @@ mini-llm-twin/
 ## Next Milestones
 
 1. Build minimal retrieval layer (RAG-lite MVP)
-   - chunk documents
-   - generate embeddings
+   - chunk documents into a separate `chunks` collection
+   - generate embeddings (store on chunks for MVP)
    - retrieve top-k chunks with source attribution
 2. Add minimal API endpoint for query/retrieval
 3. Add simple demo UI
