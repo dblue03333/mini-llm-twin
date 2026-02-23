@@ -67,7 +67,7 @@ Observed behavior (expected for Phase 3):
 ## Checklist
 
 - [x] PR is one logical change (Phase 3 reliability hardening)
-- [x] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, etc.)
+- [x] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, `spike/*`, etc.)
 - [x] Commit message follows project style
 - [ ] No secrets added (verify before merge)
 - [x] Logs/errors are clear for debugging

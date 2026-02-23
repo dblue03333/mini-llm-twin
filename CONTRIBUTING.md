@@ -165,6 +165,24 @@ Rule:
 - Tests live in the `tests/` folder.
 - Keep changes minimal (one feature/bugfix per commit).
 
+## Branch naming (professional rule)
+
+Use short, descriptive branch names with a prefix:
+
+- `feat/*`: new feature work intended to merge
+- `fix/*`: bug fixes
+- `docs/*`: documentation-only changes
+- `refactor/*`: code restructuring without behavior change
+- `test/*`: test-only work
+- `chore/*`: tooling/dependency/maintenance work
+- `spike/*`: short-lived experiments/prototypes (may be discarded)
+
+Examples:
+
+- `spike/rag-intern`
+- `feat/notion-block-pagination`
+- `fix/mongodb-upsert-filter`
+
 ---
 
 ## Quick start (macOS)
