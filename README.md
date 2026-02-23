@@ -38,7 +38,7 @@ Current execution order for internship-ready delivery:
 - Shared helpers in `src/utils/io.py` (including `iter_jsonl`)
 - Packaging/config setup for module-based execution (`src/config.py`, `pyproject.toml`)
 
-### In Progress (Phase 3: Reliability Hardening)
+### Done (Phase 3: Reliability Hardening / DE baseline complete)
 
 - MongoDB loader hardening in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
   - `--dry-run` mode (read/validate/classify without writes)
@@ -48,9 +48,29 @@ Current execution order for internship-ready delivery:
     - failure logs with line/doc context
     - duration + processed count in summary
   - tombstone-ready write behavior for active source docs (`is_deleted=false`, delete fields cleared)
-- Next hardening items:
-  - smoke-test procedure documentation
-  - future-proofing decisions (chunks/embeddings storage + tombstones)
+
+### DE Baseline Closeout (Pre-Phase 0)
+
+Validation commands (run from repo root):
+
+```bash
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
+py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+py -m src.warehouse.mongodb.load_silver_to_mongodb
+```
+
+Expected/recorded behavior for DE closeout:
+- Dry-run reports classification counters (`would_insert`, `would_update`, `would_skip`, `failed`) without MongoDB writes.
+- Normal mode writes/updates documents in `documents` and logs summary counts.
+- Rerun on unchanged input is idempotent (mostly `skipped`, no duplicate logical docs by `{metadata.source, id}`).
+
+### RAG Storage Decisions (MVP)
+
+- `documents` remains the canonical normalized source collection.
+- Add a separate `chunks` collection for retrieval-ready chunked text + chunk metadata.
+- Store embeddings on `chunks` for MVP (simpler than a separate embeddings collection).
+- Retrieval should exclude tombstoned/deleted documents by default.
 
 ## Quick Start
 
@@ -123,10 +143,8 @@ mini-llm-twin/
 
 ## Next Milestones
 
-1. Build minimal retrieval layer (RAG-lite MVP)
-   - chunk documents into a separate `chunks` collection
-   - generate embeddings (store on chunks for MVP)
-   - retrieve top-k chunks with source attribution
-2. Add minimal API endpoint for query/retrieval
-3. Add simple demo UI
-4. Deploy intern-ready version
+1. Phase 1 (RAG): build chunking pipeline (`documents` -> `chunks`) with idempotent reruns
+2. Phase 2 (RAG): generate/store embeddings on `chunks`
+3. Phase 3-4 (RAG): add `/rag/search` and `/rag/ask` endpoints with citations
+4. Phase 5 (RAG): validation, docs, and recruiter demo polish
+5. Deploy intern-ready version

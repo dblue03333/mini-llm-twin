@@ -11,10 +11,12 @@ This repo follows a production-style workflow: stable `main`, short-lived branch
   - `refactor/<scope>`
   - `docs/<scope>`
   - `chore/<scope>`
+  -  `spike/<scope>`
 - Example:
   - `feat/mongo-loader-mvp`
   - `feat/notion-ingest-hardening`
   - `fix/title-property-fallback`
+  - `spike/rag-intern`
 
 ### Parallel Branches
 
@@ -29,7 +31,7 @@ This repo follows a production-style workflow: stable `main`, short-lived branch
 3. `git checkout -b <type/scope>`
 4. Implement only one logical change.
 5. Validate locally with reproducible commands.
-6. Open PR using `.github/pull_request_template.md`.
+6. Open PR using `.github/pull_request.md`.
 7. Squash merge after review/checks.
 8. Delete branch after merge.
 
@@ -111,3 +113,17 @@ Before implementing retrieval/RAG, document storage decisions in docs/PR notes:
 2. Where embeddings will be stored (on chunks for MVP)
 3. How chunk records reference canonical documents
 4. How tombstoned/deleted source docs will be excluded from retrieval
+
+## RAG Phase 1 Validation (Chunking Pattern)
+
+For the first RAG implementation phase (chunking), validate with:
+
+1. `py scripts/build_chunks.py --limit 3`
+2. `py scripts/build_chunks.py`
+3. Rerun `py scripts/build_chunks.py` on unchanged data
+
+PR evidence should show:
+- first run inserts chunks into the `chunks` collection
+- rerun is idempotent (mostly `skipped`, no duplicate logical chunks)
+- logs include chunk build counters (for example: `processed_docs`, `inserted`, `updated`, `skipped`, `failed`)
+- chunk records include stable provenance (`document_ref`, `chunk_index`) and are filterable for active docs only
