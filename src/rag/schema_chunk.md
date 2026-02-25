@@ -80,4 +80,41 @@ Note:
 
 Read from `documents`:
 - Filter: `is_deleted = false`
-- Required fields: `id`, `text`, `type`,
+- Required fields: `id`, `text`, `type`, `metadata`, `updated_at`
+
+Write to `chunks`:
+- Upsert by `chunk_id`
+- Keep counters:
+  - `processed_docs`
+  - `chunks_inserted`
+  - `chunks_updated`
+  - `chunks_skipped`
+  - `failed`
+
+## Planned Indexes for `chunks` (Draft)
+
+- Unique index on `chunk_id`
+- Index on `document_ref.source`, `document_ref.id`
+- Index on `is_deleted`
+- Index on `updated_at`
+
+Optional later (retrieval phase):
+- Index on `type`
+
+## Phase 1 File Plan
+
+- `src/rag/chunking.py`
+  - pure chunk splitting logic
+  - chunk record builder helpers
+- `scripts/build_chunks.py` (or `src/rag/build_chunks.py` if using module entrypoint style)
+  - Mongo read/write orchestration
+  - logging + counters
+  - `--limit` for debugging (optional but recommended)
+
+## Validation Plan (Phase 1)
+
+Commands (draft):
+```bash
+py scripts/build_chunks.py --limit 3
+py scripts/build_chunks.py
+py scripts/build_chunks.py
