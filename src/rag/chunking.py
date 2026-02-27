@@ -1,8 +1,8 @@
-# from src.config import CHUNK_OVERLAP_CHARS, CHUNK_SIZE_CHARS
+from src.config import CHUNK_OVERLAP_CHARS, CHUNK_SIZE_CHARS
 import hashlib
 
-CHUNK_SIZE_CHARS = 800
-CHUNK_OVERLAP_CHARS = 120
+# CHUNK_SIZE_CHARS = 800
+# CHUNK_OVERLAP_CHARS = 120
 
 def split_text_into_chunks(text: str, chunk_size: int, chunk_overlap: int) -> list[dict]:
     """
@@ -101,15 +101,17 @@ def build_chunk_records_from_document(document: dict) -> list[dict]:
 
 if __name__ == "__main__":
     doc = {
-        "id": "abc123",
-        "type": "article",
-        "text": "abcdefghij" * 5,
-        "updated_at": "2026-02-26T10:00:00Z",
-        "metadata": {"source": "notion", "title": "Test Note"},
-    }
+  "id": "",
+  "type": "article",
+  "text": "hello",
+  "metadata": {"source": "notion"}
+}
+
+
+
     records = build_chunk_records_from_document(doc)
-    print(len(records))
-    print(records[0])
+    print(records)
+    # print(records[0])
 
 
 

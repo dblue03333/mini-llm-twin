@@ -17,17 +17,22 @@ def require_env(name: str) ->str:
         raise RuntimeError(f"Missing {name} in .env")
     return value
 MONGODB_URI= require_env('MONGODB_URI')
-# if not MONGODB_URI:
-#     print("Missing MONGODB_URI in .env")
-#     sys.exit(1)
+if not MONGODB_URI:
+    print("Missing MONGODB_URI in .env")
+    sys.exit(1)
 MONGODB_DB= require_env('MONGODB_DB')
-# if not MONGODB_DB:
-#     print("Missing MONGODB_DB in .env")
-#     sys.exit(1)
+if not MONGODB_DB:
+    print("Missing MONGODB_DB in .env")
+    sys.exit(1)
 MONGODB_COLLECTION= require_env('MONGODB_COLLECTION')
-# if not MONGODB_COLLECTION:
-#     print("Missing MONGODB_COLLECTION in .env")
-#     sys.exit(1)
+if not MONGODB_COLLECTION:
+    print("Missing MONGODB_COLLECTION in .env")
+    sys.exit(1)
+MONGODB_CHUNKS_COLLECTION= require_env('MONGODB_CHUNKS_COLLECTION')
+if not MONGODB_CHUNKS_COLLECTION:
+    print("Missing MONGODB_CHUNKS_COLLECTION in .env")
+    sys.exit(1)
+
 assert MONGODB_DB is not None
 assert MONGODB_COLLECTION is not None
 
