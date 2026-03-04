@@ -38,6 +38,15 @@ Current execution order for internship-ready delivery:
 - Shared helpers in `src/utils/io.py` (including `iter_jsonl`)
 - Packaging/config setup for module-based execution (`src/config.py`, `pyproject.toml`)
 
+### Done (Phase 1: Chunking Pipeline - Core RAG foundation)
+
+- Chunking logic built (`src/rag/chunking.py`) with configurable overlap and size.
+- MongoDB interaction implemented in `src/rag/build_chunks.py`:
+  - Enforces `uniq_id` idempotent constraint on individual chunks.
+  - Adds optimal read-heavy indexes (`idx_document_ref_id`, `idx_is_deleted`, `idx_updated_at`).
+  - Implements safely rerunnable updates via `update_one(upsert=True)`.
+  - Orchestration pipeline loop logs correct processed, inserted, and skipped chunks to avoid data duplication.
+
 ### Done (Phase 3: Reliability Hardening / DE baseline complete)
 
 - MongoDB loader hardening in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
@@ -114,6 +123,11 @@ py -m src.warehouse.mongodb.load_silver_to_mongodb
 ```bash
 py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
 py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
+```
+
+7) Run Chunking Pipeline (Phase 1)
+```bash
+py src/rag/build_chunks.py
 ```
 
 ## Data Contracts

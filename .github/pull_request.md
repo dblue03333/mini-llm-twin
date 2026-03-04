@@ -1,6 +1,6 @@
 ## Summary
 
-Phase 1 (RAG chunking foundation, in progress): implement deterministic chunk splitting and chunk record builder logic in `src/rag/chunking.py`, plus schema/design documentation for the `chunks` collection before MongoDB upsert orchestration.
+Phase 1 (Chunking Pipeline) Complete: implemented deterministic chunk splitting and chunk record builder logic in `src/rag/chunking.py`, designed the schema documentation, and fully built the `build_chunks.py` MongoDB orchestration. The pipeline now successfully reads active documents, chunks them, and idempotently upserts them into the `chunks` collection with proper indexing.
 
 ## Problem
 
@@ -36,41 +36,30 @@ Done today:
 - [x] Document chunk schemas, field meanings, idempotency logic, and function responsibility split in `src/rag/schema_chunk.md`
 - [x] Run local/manual function-level validation via `py src/rag/chunking.py`
 
-In progress:
-- [ ] Create `build_chunks.py` entrypoint (Mongo read/write orchestration)
-- [ ] Create Mongo read function for active documents (`is_deleted=false`)
-
-Next steps:
-- [ ] Create Mongo upsert function for chunks (idempotent)
-- [ ] Add indexes for `chunks` collection
-- [ ] Add logging counters (`processed_docs`, `chunks_inserted`, `updated`, `skipped`, `failed`)
-- [ ] Add rerun behavior check (no duplicates on unchanged data)
-- [ ] Write chunking run instructions in README/docs after `build_chunks.py` is implemented
+- [x] Create `build_chunks.py` entrypoint (Mongo read/write orchestration)
+- [x] Create Mongo read function for active documents (`is_deleted=false`)
+- [x] Create Mongo upsert function for chunks (idempotent)
+- [x] Add indexes for `chunks` collection (`uniq_id`, `idx_document_ref_id`, `idx_is_deleted`, `idx_updated_at`)
+- [x] Add logging counters (`processed_docs`, `chunks_inserted`, `updated`, `skipped`, `failed`)
+- [x] Add rerun behavior check (no duplicates on unchanged data via `$set` upsert)
+- [x] Write chunking run instructions in README/docs
 
 ## Validation
 
 ```bash
-py src/rag/chunking.py
+py src/rag/build_chunks.py
 ```
 
-Observed behavior (today / local function-level validation):
-- `split_text_into_chunks(...)` returns deterministic chunk segments with overlap metadata.
-- `build_chunk_records_from_document(...)` returns storage-ready chunk records (including `chunk_id`, `document_ref`, `content_hash`).
-- Manual fake-document validation confirms chunk record field shaping before MongoDB upsert phase.
-
-Planned validation (next step, after `build_chunks.py`):
-
-```bash
-py scripts/build_chunks.py --limit 3
-py scripts/build_chunks.py
-py scripts/build_chunks.py
-```
+Observed behavior (today / full pipeline validation):
+- Pipeline successfully processes active documents and creates expected chunk records.
+- Repeated executions yield identical chunk results with 0 `inserted` and N `skipped` records (idempotency verified).
+- Logging correctly displays processing metrics to the console.
 
 ## Data/Behavior Impact
 
-- [x] No behavior change (no MongoDB writes yet; chunking logic + docs foundation only)
-- [ ] Behavior change (adds Phase 1 RAG chunk materialization + `chunks` collection writes)
-- [x] Data schema/output change (documented `chunks` schema and chunk record shape for upcoming materialization)
+- [ ] No behavior change (no MongoDB writes yet; chunking logic + docs foundation only)
+- [x] Behavior change (adds Phase 1 RAG chunk materialization + `chunks` collection writes)
+- [x] Data schema/output change (documented `chunks` schema and chunk record shape for materialization)
 
 ## Risk and Rollback
 
@@ -86,4 +75,4 @@ py scripts/build_chunks.py
 - [x] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, `spike/*`, etc.)
 - [x] Commit message follows project style
 - [ ] No secrets added (verify before merge)
-- [ ] Logs/errors are clear for debugging (pending `build_chunks.py` implementation)
+- [x] Logs/errors are clear for debugging
