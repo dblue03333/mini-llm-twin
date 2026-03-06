@@ -38,3 +38,5 @@ assert MONGODB_COLLECTION is not None
 
 CHUNK_SIZE_CHARS = int(require_env('CHUNK_SIZE_CHARS'))
 CHUNK_OVERLAP_CHARS = int(require_env('CHUNK_OVERLAP_CHARS'))
+
+BATCH_SIZE = int(os.getenv('EMBEDDING_BATCH_SIZE', 80))
