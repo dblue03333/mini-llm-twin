@@ -6,25 +6,6 @@ This portfolio project demonstrates a complete, fault-tolerant Data Engineering 
 
 ---
 
-## Architecture & Data Flow
-
-```mermaid
-graph TD
-    A[Notion API] -->|Paginated Sync| B(Bronze: Raw JSONL)
-    B -->|Parsing & Structuring| C(Silver: Normalized JSONL)
-    C -->|Idempotent Upsert| D[(MongoDB: Documents)]
-    
-    subgraph Core RAG Backend
-        D -->|Semantic Chunking| E[(MongoDB: Chunks)]
-        E -->|Stale Detection| F(Batching Logic)
-        F -->|Rate-Limited Request| G[Gemini API]
-        G -->|Returns 768d Vector| H(BulkWrite $set)
-        H --> E
-    end
-```
-
----
-
 ## Key Engineering Highlights (Why I Built It This Way)
 
 As a candidate applying for Software / AI Applied / Data Engineering roles, this project was designed to showcase **enterprise-level best practices** rather than just a simple script:
