@@ -1,4 +1,4 @@
-﻿# AITwin / Learning Assistant
+# AITwin / Learning Assistant
 
 Portfolio project: building a small end-to-end LLM Twin system in Python.
 
@@ -46,6 +46,17 @@ Current execution order for internship-ready delivery:
   - Adds optimal read-heavy indexes (`idx_document_ref_id`, `idx_is_deleted`, `idx_updated_at`).
   - Implements safely rerunnable updates via `update_one(upsert=True)`.
   - Orchestration pipeline loop logs correct processed, inserted, and skipped chunks to avoid data duplication.
+
+### Done (Phase 2: RAG Embedding Pipeline)
+
+- Embeddings logic built (`src/rag/embeddings.py`) with `google.genai` SDK.
+- Configured Gemini API as the primary provider (MVP tradeoff: lightweight, free tier, vs local model complexity). Uses `models/gemini-embedding-001`.
+- Built robust retry/backoff for API rate-limit resilience.
+- Orchestrator (`src/rag/build_embeddings.py`):
+  - Fetches stale chunks missing embeddings or with changed `text_hash` fingerprint.
+  - Sends batches of text to the Embedding provider to satisfy API quota rules.
+  - Employs `$set` via `bulk_write` to safely enrich chunks with vectors, `embedding_model`, `embedding_dim`, and `embedded_at`.
+  - Logs summary of processed, inserted, skipped chunks.
 
 ### Done (Phase 3: Reliability Hardening / DE baseline complete)
 
@@ -130,6 +141,11 @@ py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
 py src/rag/build_chunks.py
 ```
 
+8) Run Embedding Pipeline (Phase 2)
+```bash
+py src/rag/build_embeddings.py
+```
+
 ## Data Contracts
 
 Bronze (`data/bronze/notion_raw.jsonl`):
@@ -157,8 +173,7 @@ mini-llm-twin/
 
 ## Next Milestones
 
-1. Phase 1 (RAG): build chunking pipeline (`documents` -> `chunks`) with idempotent reruns
-2. Phase 2 (RAG): generate/store embeddings on `chunks`
-3. Phase 3-4 (RAG): add `/rag/search` and `/rag/ask` endpoints with citations
-4. Phase 5 (RAG): validation, docs, and recruiter demo polish
-5. Deploy intern-ready version
+1. Phase 1-2 (RAG): chunking and embedding logic completed (`documents` -> `chunks` -> vectors)
+2. Phase 3-4 (RAG): add `/rag/search` and `/rag/ask` endpoints with citations
+3. Phase 5 (RAG): validation, docs, and recruiter demo polish
+4. Deploy intern-ready version

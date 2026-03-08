@@ -1,6 +1,6 @@
 ## Summary
 
-Phase 2 (Embedding Pipeline, in progress): setup embedding provider interface, batching logic, and MongoDB orchestration `build_embeddings.py` to convert chunked text into vector embeddings.
+Phase 2 (Embedding Pipeline, completed): setup embedding provider interface, batching logic, and MongoDB orchestration `build_embeddings.py` to convert chunked text into vector embeddings.
 
 ## Problem
 
@@ -23,20 +23,20 @@ Phase 2 (Embedding Pipeline, in progress): setup embedding provider interface, b
 ## Changes
 
 In progress:
-- [ ] Define embedding provider interface (`embed_texts`)
-- [ ] Choose MVP provider default (Gemini) + fallback strategy
-- [ ] Add embedding config/envs (`GEMINI_API_KEY`, provider/model names)
-- [ ] Create `embeddings.py`
-- [ ] Implement chunk selection query (missing/stale embeddings only)
-- [ ] Implement batching logic
-- [ ] Implement retry/backoff/rate-limit handling
-- [ ] Persist embedding fields (`embedding`, `embedding_model`, `embedded_at`, `embedding_dim`)
-- [ ] Add embedding consistency checks (`embedding_dim` stable per model)
-- [ ] Create `build_embeddings.py`
-- [ ] Add logs/counters (`embedded`, `skipped`, `failed`, `batches`)
-- [ ] Add rerun skip behavior (unchanged chunks not re-embedded)
-- [ ] Add quota-safe failure messages
-- [ ] Document embedding provider tradeoff in README
+- [x] Define embedding provider interface (`embed_texts`)
+- [x] Choose MVP provider default (Gemini) + fallback strategy
+- [x] Add embedding config/envs (`GEMINI_API_KEY`, provider/model names)
+- [x] Create `embeddings.py`
+- [x] Implement chunk selection query (missing/stale embeddings only)
+- [x] Implement batching logic
+- [x] Implement retry/backoff/rate-limit handling
+- [x] Persist embedding fields (`embedding`, `embedding_model`, `embedded_at`, `embedding_dim`)
+- [x] Add embedding consistency checks (`embedding_dim` stable per model)
+- [x] Create `build_embeddings.py`
+- [x] Add logs/counters (`embedded`, `skipped`, `failed`, `batches`)
+- [x] Add rerun skip behavior (unchanged chunks not re-embedded)
+- [x] Add quota-safe failure messages
+- [x] Document embedding provider tradeoff in README
 
 ## Validation
 

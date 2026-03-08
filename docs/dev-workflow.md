@@ -127,3 +127,17 @@ PR evidence should show:
 - rerun is idempotent (mostly `skipped`, no duplicate logical chunks)
 - logs include chunk build counters (for example: `processed_docs`, `inserted`, `updated`, `skipped`, `failed`)
 - chunk records include stable provenance (`document_ref`, `chunk_index`) and are filterable for active docs only
+
+## RAG Phase 2 Validation (Embedding Pattern)
+
+For the second RAG implementation phase (embedding), validate with:
+
+1. `py src/rag/build_embeddings.py`
+2. Rerun `py src/rag/build_embeddings.py` on unchanged data
+
+PR evidence should show:
+- first run calls Gemini API efficiently in batches, handling rate limits with backoff
+- embeddings and hashes are added via `$set` (keeps previous text data intact)
+- rerun is idempotent (0 chunks processed if nothing changed since last hash)
+- logs include embedding summary (`Created/Updated`, `Skipped`, `Failed`)
+
