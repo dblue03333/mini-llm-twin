@@ -1,4 +1,4 @@
-# 🚀 AITwin | End-to-End LLM Learning Assistant
+# AITwin | End-to-End LLM Learning Assistant
 
 **A production-grade Retrieval-Augmented Generation (RAG) system built in Python.**
 
@@ -6,7 +6,7 @@ This portfolio project demonstrates a complete, fault-tolerant Data Engineering 
 
 ---
 
-## 🏗️ Architecture & Data Flow
+## Architecture & Data Flow
 
 ```mermaid
 graph TD
@@ -25,9 +25,9 @@ graph TD
 
 ---
 
-## 🌟 Key Engineering Highlights (Why I Built It This Way)
+## Key Engineering Highlights (Why I Built It This Way)
 
-As a candidate applying for Software / AI Engineering roles, this project was designed to showcase **enterprise-level best practices** rather than just a simple script:
+As a candidate applying for Software / AI Applied / Data Engineering roles, this project was designed to showcase **enterprise-level best practices** rather than just a simple script:
 
 1. **State Management & "Data Drift" Detection (Hash-based):** 
    Instead of blindly re-embedding all documents, the pipeline generates an `MD5 hash` of the chunk text. It compares this fingerprint to know exactly which chunks have been updated, saving massive API costs and processing time.
@@ -43,7 +43,7 @@ As a candidate applying for Software / AI Engineering roles, this project was de
 
 ---
 
-## 🚀 Quick Start (Local Setup)
+## Quick Start (Local Setup)
 
 Want to run the pipeline yourself?
 
@@ -80,7 +80,7 @@ python src/rag/build_embeddings.py
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 mini-llm-twin/
@@ -97,7 +97,7 @@ mini-llm-twin/
 
 ---
 
-## 🛣️ Roadmap & Milestones
+## Roadmap & Milestones
 
 - [x] **Phase 0:** Data Engineering Baseline (`Notion -> Bronze/Silver/State`)
 - [x] **Phase 1:** MongoDB Warehouse & Semantic Chunking 
