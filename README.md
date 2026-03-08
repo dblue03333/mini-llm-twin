@@ -1,179 +1,111 @@
-# AITwin / Learning Assistant
+# 🚀 AITwin | End-to-End LLM Learning Assistant
 
-Portfolio project: building a small end-to-end LLM Twin system in Python.
+**A production-grade Retrieval-Augmented Generation (RAG) system built in Python.**
 
-Current execution order for internship-ready delivery:
-1. Data engineering baseline (`Notion -> Bronze/Silver/State`)
-2. MongoDB warehouse MVP (`Silver -> Mongo upsert`)
-3. Lightweight retrieval/app layer
-4. Deployment
+This portfolio project demonstrates a complete, fault-tolerant Data Engineering and AI pipeline. It ingests unstructured data from Notion, processes it through multiple quality layers (Bronze/Silver), breaks it into semantic chunks, and generates vector embeddings via the Gemini AI API for semantic search.
 
-## Current Stage
+---
 
-### Done
+## 🏗️ Architecture & Data Flow
 
-- Notion ingestion pipeline in `scripts/ingest_notes.py`:
-  - Queries Notion DB with pagination
-  - Fetches page blocks
-  - Writes Bronze (`data/bronze/notion_raw.jsonl`)
-  - Writes Silver (`data/silver/documents.jsonl`)
-  - Maintains incremental state (`data/state/notion_state.json`)
-- Incremental sync using `page_id + last_edited_time`
-- Basic reliability:
-  - retry/backoff for 429/5xx
-  - auth fail-fast for 401/403
-- Development workflow docs and PR template established
-
-### Done (Phase 2: MongoDB Warehouse MVP)
-
-- MongoDB warehouse loader in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
-  - Connects to MongoDB and validates connectivity (`ping`)
-  - Creates indexes for idempotency and retrieval:
-    - unique `{metadata.source, id}`
-    - `metadata.source`, `type`, `updated_at`
-  - Loads Silver JSONL (`data/silver/documents.jsonl`) into MongoDB
-  - Uses idempotent upsert with `updated_at` comparison
-  - Validates required fields and handles malformed JSONL lines
-  - Logs `inserted/updated/skipped/failed` summary counts
-- Shared helpers in `src/utils/io.py` (including `iter_jsonl`)
-- Packaging/config setup for module-based execution (`src/config.py`, `pyproject.toml`)
-
-### Done (Phase 1: Chunking Pipeline - Core RAG foundation)
-
-- Chunking logic built (`src/rag/chunking.py`) with configurable overlap and size.
-- MongoDB interaction implemented in `src/rag/build_chunks.py`:
-  - Enforces `uniq_id` idempotent constraint on individual chunks.
-  - Adds optimal read-heavy indexes (`idx_document_ref_id`, `idx_is_deleted`, `idx_updated_at`).
-  - Implements safely rerunnable updates via `update_one(upsert=True)`.
-  - Orchestration pipeline loop logs correct processed, inserted, and skipped chunks to avoid data duplication.
-
-### Done (Phase 2: RAG Embedding Pipeline)
-
-- Embeddings logic built (`src/rag/embeddings.py`) with `google.genai` SDK.
-- Configured Gemini API as the primary provider (MVP tradeoff: lightweight, free tier, vs local model complexity). Uses `models/gemini-embedding-001`.
-- Built robust retry/backoff for API rate-limit resilience.
-- Orchestrator (`src/rag/build_embeddings.py`):
-  - Fetches stale chunks missing embeddings or with changed `text_hash` fingerprint.
-  - Sends batches of text to the Embedding provider to satisfy API quota rules.
-  - Employs `$set` via `bulk_write` to safely enrich chunks with vectors, `embedding_model`, `embedding_dim`, and `embedded_at`.
-  - Logs summary of processed, inserted, skipped chunks.
-
-### Done (Phase 3: Reliability Hardening / DE baseline complete)
-
-- MongoDB loader hardening in `src/warehouse/mongodb/load_silver_to_mongodb.py`:
-  - `--dry-run` mode (read/validate/classify without writes)
-  - `--limit` for fast subset validation
-  - improved observability:
-    - start/end logs with mode, file, db/collection, run_id
-    - failure logs with line/doc context
-    - duration + processed count in summary
-  - tombstone-ready write behavior for active source docs (`is_deleted=false`, delete fields cleared)
-
-### DE Baseline Closeout (Pre-Phase 0)
-
-Validation commands (run from repo root):
-
-```bash
-py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
-py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
-py -m src.warehouse.mongodb.load_silver_to_mongodb
-py -m src.warehouse.mongodb.load_silver_to_mongodb
+```mermaid
+graph TD
+    A[Notion API] -->|Paginated Sync| B(Bronze: Raw JSONL)
+    B -->|Parsing & Structuring| C(Silver: Normalized JSONL)
+    C -->|Idempotent Upsert| D[(MongoDB: Documents)]
+    
+    subgraph Core RAG Backend
+        D -->|Semantic Chunking| E[(MongoDB: Chunks)]
+        E -->|Stale Detection| F(Batching Logic)
+        F -->|Rate-Limited Request| G[Gemini API]
+        G -->|Returns 768d Vector| H(BulkWrite $set)
+        H --> E
+    end
 ```
 
-Expected/recorded behavior for DE closeout:
-- Dry-run reports classification counters (`would_insert`, `would_update`, `would_skip`, `failed`) without MongoDB writes.
-- Normal mode writes/updates documents in `documents` and logs summary counts.
-- Rerun on unchanged input is idempotent (mostly `skipped`, no duplicate logical docs by `{metadata.source, id}`).
+---
 
-### RAG Storage Decisions (MVP)
+## 🌟 Key Engineering Highlights (Why I Built It This Way)
 
-- `documents` remains the canonical normalized source collection.
-- Add a separate `chunks` collection for retrieval-ready chunked text + chunk metadata.
-- Store embeddings on `chunks` for MVP (simpler than a separate embeddings collection).
-- Retrieval should exclude tombstoned/deleted documents by default.
+As a candidate applying for Software / AI Engineering roles, this project was designed to showcase **enterprise-level best practices** rather than just a simple script:
 
-## Quick Start
+1. **State Management & "Data Drift" Detection (Hash-based):** 
+   Instead of blindly re-embedding all documents, the pipeline generates an `MD5 hash` of the chunk text. It compares this fingerprint to know exactly which chunks have been updated, saving massive API costs and processing time.
+2. **Idempotency & Resiliency:**
+   Every stage of the pipeline (Warehouse loading, Chunking, Embedding) is designed to be **Idempotent**. You can run the pipeline 100 times, and it will gracefully skip existing data using MongoDB's `$set` and unique indexes, preventing duplicate records.
+3. **Advanced Object-Oriented Patterns:**
+   - **Strategy Pattern (`EmbeddingProvider`)**: The architecture decouples the main pipeline from the specific AI provider, making it trivial to swap Gemini for OpenAI or Local models.
+   - **Singleton Pattern (`EmbeddingModelSingleton`)**: Guarantees the API client is instantiated only once into memory, preventing memory leaks during massive 10,000+ chunk ingestion runs.
+4. **API Rate Limiting & Batching:**
+   The embedding orchestrator respects Google's quotas by compiling data into batches (80 items/batch). It includes custom **Exponential Backoff (`time.sleep(2**attempt)`)** inside a retry loop to gracefully survive "Too Many Requests" 429 Errors.
+5. **Production Observability:**
+   Includes a `--dry-run` flag to validate pipeline behavior before committing database writes, alongside rich `logging` configured for exact performance durations and success/fail/skip counts.
 
-1) Create and activate a venv
+---
 
-PowerShell:
-```bash
-py -m venv .venv
+## 🚀 Quick Start (Local Setup)
+
+Want to run the pipeline yourself?
+
+**1. Environment Setup**
+```powershell
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-2) Install dependencies
-```bash
-py -m pip install -U pip
+pip install -U pip
 pip install -r requirements.txt
 ```
 
-Optional package-mode install:
-```bash
-pip install -e .
+**2. Credentials**
+Create a `.env` file containing your Notion and Google AI Studio API credentials (see `.env.example`).
+
+**3. Run the Data Ingestion (Notion -> Local JSONL)**
+```powershell
+python scripts/ingest_notes.py
 ```
 
-3) Configure environment variables
-
-- Create `.env` from `.env.example`
-- Never commit `.env`
-
-4) Run Notion ingestion
-```bash
-py scripts/ingest_notes.py
-py scripts/ingest_notes.py --page-size 2 --max-pages 1
-py scripts/ingest_notes.py --force
+**4. Run the Data Warehouse Loader (JSONL -> MongoDB)**
+```powershell
+python -m src.warehouse.mongodb.load_silver_to_mongodb
 ```
 
-5) Run Mongo loader module (from repo root)
-```bash
-py -m src.warehouse.mongodb.load_silver_to_mongodb
+**5. Run the RAG Chunking Pipeline (Phase 1)**
+```powershell
+python src/rag/build_chunks.py
 ```
 
-6) Dry-run / subset validation (Phase 3)
-```bash
-py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run
-py -m src.warehouse.mongodb.load_silver_to_mongodb --dry-run --limit 3
+**6. Run the RAG Embedding Pipeline (Phase 2)**
+```powershell
+python src/rag/build_embeddings.py
 ```
 
-7) Run Chunking Pipeline (Phase 1)
-```bash
-py src/rag/build_chunks.py
-```
+---
 
-8) Run Embedding Pipeline (Phase 2)
-```bash
-py src/rag/build_embeddings.py
-```
-
-## Data Contracts
-
-Bronze (`data/bronze/notion_raw.jsonl`):
-- `id`, `created_time`, `last_edited_time`, `title`, `text`
-
-Silver (`data/silver/documents.jsonl`):
-- `id`, `type`, `text`, `created_at`, `updated_at`, `metadata`
-
-State (`data/state/notion_state.json`):
-- `pages_last_edited`, `last_sync`
-
-## Project Structure (Current)
+## 📂 Project Structure
 
 ```text
 mini-llm-twin/
-  app/                        # API app layer (next phase)
-  scripts/                    # runnable entry scripts
+  app/                        # Next Phase: API & UI Layer
+  scripts/                    # Entry points for Notion Ingestion
   src/
-    config.py                 # shared runtime config
-    utils/                    # shared IO helpers
-    warehouse/mongodb/        # Mongo loader modules
-  data/                       # local bronze/silver/state artifacts
-  docs/                       # workflow + architecture notes
+    config.py                 # Centralized Env/Config manager
+    utils/                    # Shared MongoDB and IO Utilities
+    warehouse/                # Bronze -> Silver -> Mongo ETL loaders
+    rag/                      # Core AI: Chunking & Embeddings Engine
+  data/                       # Local JSONL storage for Bronze/Silver
+  docs/                       # Architecture diagrams & workflows
 ```
 
-## Next Milestones
+---
 
-1. Phase 1-2 (RAG): chunking and embedding logic completed (`documents` -> `chunks` -> vectors)
-2. Phase 3-4 (RAG): add `/rag/search` and `/rag/ask` endpoints with citations
-3. Phase 5 (RAG): validation, docs, and recruiter demo polish
-4. Deploy intern-ready version
+## 🛣️ Roadmap & Milestones
+
+- [x] **Phase 0:** Data Engineering Baseline (`Notion -> Bronze/Silver/State`)
+- [x] **Phase 1:** MongoDB Warehouse & Semantic Chunking 
+- [x] **Phase 2:** AI Embedding Orchestration
+- [ ] **Phase 3:** RAG Retrieval Layer (Vector Search & Ranking)
+- [ ] **Phase 4:** API serving endpoints (`/search` & `/ask`)
+- [ ] **Phase 5:** Cloud Deployment & Recruiter Demo Polish
+
+---
+
+> *"Built with a focus on code maintainability, fault-tolerance, and scalable AI data infrastructure."*
