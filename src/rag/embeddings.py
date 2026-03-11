@@ -18,7 +18,6 @@ class EmbeddingProvider(ABC):
         """
         pass
 
-# TODO: Implement GeminiEmbeddingProvider (and retry/rate limit logic)
 
 class EmbeddingModelSingleton:
     """
@@ -47,7 +46,6 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         
         log = logging.getLogger(__name__)
-
         max_retries = 3
         for attempt in range(max_retries):
             try:

@@ -37,7 +37,7 @@ pip install -r requirements.txt
 ```
 
 **2. Credentials**
-Create a `.env` file containing your Notion and Google AI Studio API credentials (see `.env.example`).
+Create a `.env` file containing my Notion and Google AI Studio API credentials (see `.env.example`).
 
 **3. Run the Data Ingestion (Notion -> Local JSONL)**
 ```powershell
