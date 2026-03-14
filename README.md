@@ -19,8 +19,10 @@ As a candidate applying for Software / AI Applied / Data Engineering roles, this
    - **Singleton Pattern (`EmbeddingModelSingleton`)**: Guarantees the API client is instantiated only once into memory, preventing memory leaks during massive 10,000+ chunk ingestion runs.
 4. **API Rate Limiting & Batching:**
    The embedding orchestrator respects Google's quotas by compiling data into batches (80 items/batch). It includes custom **Exponential Backoff (`time.sleep(2**attempt)`)** inside a retry loop to gracefully survive "Too Many Requests" 429 Errors.
-5. **Production Observability:**
-   Includes a `--dry-run` flag to validate pipeline behavior before committing database writes, alongside rich `logging` configured for exact performance durations and success/fail/skip counts.
+5. **Production Observability & Resilience:**
+   Includes a `--dry-run` flag for ingestion, and the Retrieval API handles external failures gracefully. If an AI provider or Database is unreachable, the system returns a safe empty state instead of crashing, ensuring high availability.
+6. **API Contract Enforcement (Pydantic):**
+   The retrieval layer uses strict Pydantic models to validate incoming data. This "Fail Fast" approach prevents database injection and expensive AI API calls for invalid input.
 
 ---
 
@@ -59,6 +61,15 @@ python src/rag/build_chunks.py
 python src/rag/build_embeddings.py
 ```
 
+**7. Start the Retrieval API (Phase 3)**
+```powershell
+uvicorn app.main:app
+```
+Then visit `http://127.0.0.1:8000/docs` to test the semantic search manually, or run the smoke test:
+```powershell
+python scripts/smoke_test_retrieval.py
+```
+
 ---
 
 ## Project Structure
@@ -83,8 +94,8 @@ mini-llm-twin/
 - [x] **Phase 0:** Data Engineering Baseline (`Notion -> Bronze/Silver/State`)
 - [x] **Phase 1:** MongoDB Warehouse & Semantic Chunking 
 - [x] **Phase 2:** AI Embedding Orchestration
-- [ ] **Phase 3:** RAG Retrieval Layer (Vector Search & Ranking)
-- [ ] **Phase 4:** API serving endpoints (`/search` & `/ask`)
+- [x] **Phase 3:** RAG Retrieval Layer (Vector Search & FastAPI)
+- [ ] **Phase 4:** LLM Generation API (`/ask`)
 - [ ] **Phase 5:** Cloud Deployment & Recruiter Demo Polish
 
 ---

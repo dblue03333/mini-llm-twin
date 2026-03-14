@@ -9,6 +9,22 @@ from src.config import MONGODB_CHUNKS_COLLECTION
 log = logging.getLogger(__name__)
 
 def retrieve_chunks(query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    """
+    Goal: Retrieve the most semantically relevant document chunks from MongoDB Atlas.
+    
+    Input:
+    - query_text (str): The raw search query.
+    - top_k (int): Number of results to return (default=5).
+    
+    Output:
+    - List[Dict[str, Any]]: List of chunks containing text, metadata, and similarity score.
+    
+    Notes:
+    - Uses Gemini API for query embedding generation.
+    - Requires a 'vector_index' to be defined in MongoDB Atlas.
+    - Filters out chunks where 'is_deleted' is True.
+    - Returns an empty list if input is invalid or on system failure.
+    """
     if not query_text or query_text.strip() == '':
         return []
     if top_k <= 0:
@@ -42,7 +58,7 @@ def retrieve_chunks(query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
                     "text": 1,
                     "metadata": 1,
                     "score": 
-                    {
+                    {   
                         "$meta": "vectorSearchScore"
                     }
                 }

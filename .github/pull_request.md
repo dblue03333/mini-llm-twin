@@ -1,66 +1,55 @@
 ## Summary
 
-Phase 2 (Embedding Pipeline, completed): setup embedding provider interface, batching logic, and MongoDB orchestration `build_embeddings.py` to convert chunked text into vector embeddings.
+Phase 3 (Retrieval API, completed): Implemented the semantic search layer using FastAPI, Pydantic, and MongoDB Atlas Vector Search. This turns the embedded "memory" from Phase 2 into an accessible web service.
 
 ## Problem
 
-- Phase 1 successfully chopped documents into text chunks, but finding relevant information through text-matching is slow and ignores semantic meaning.
-- In order to perform Retrieval-Augmented Generation (RAG), the text must be translated into mathematical vector embeddings.
-- These embeddings must be generated via an external provider (like Gemini) and stored back into the `chunks` collection for vector search.
+- In Phase 2, we successfully embedded chunks into MongoDB, but there was no way for an external system (frontend/mobile) to query them.
+- Raw database queries are dangerous and lack validation. We need an "API Contract" that enforces data types and provides a clean interface for search.
+- The retrieval must be resilient—handling missing data, large search volumes, and API failures gracefully.
 
 ## Scope
 
 - In scope:
-  - `src/rag/embeddings.py` (Embedding provider interface, rate-limit handling, batching logic)
-  - `src/rag/build_embeddings.py` (Mongo orchestration, finding missing/stale embeddings, updating records)
-  - Config updates for API keys
-  - Local validation of embedding generation
+  - `app/api.py` (Pydantic request/response schemas, contract enforcement)
+  - `app/main.py` (FastAPI initialization and `/rag/search` route)
+  - `src/rag/retrieval.py` (The "Search Engine": query embedding + Atlas Vector Search orchestration)
+  - Validation: Smoke tests for latency and schema accuracy.
 - Out of scope:
-  - Phase 3 (Retrieval API implementation)
-  - Phase 4 (Answer generation API)
-  - Deployment changes
+  - Phase 4 (LLM Generation and Answer synthesis)
+  - Phase 5 (Production deployment/Dockerization)
 
 ## Changes
 
-In progress:
-- [x] Define embedding provider interface (`embed_texts`)
-- [x] Choose MVP provider default (Gemini) + fallback strategy
-- [x] Add embedding config/envs (`GEMINI_API_KEY`, provider/model names)
-- [x] Create `embeddings.py`
-- [x] Implement chunk selection query (missing/stale embeddings only)
-- [x] Implement batching logic
-- [x] Implement retry/backoff/rate-limit handling
-- [x] Persist embedding fields (`embedding`, `embedding_model`, `embedded_at`, `embedding_dim`)
-- [x] Add embedding consistency checks (`embedding_dim` stable per model)
-- [x] Create `build_embeddings.py`
-- [x] Add logs/counters (`embedded`, `skipped`, `failed`, `batches`)
-- [x] Add rerun skip behavior (unchanged chunks not re-embedded)
-- [x] Add quota-safe failure messages
-- [x] Document embedding provider tradeoff in README
+- [x] Create Pydantic schemas in `api.py` (SearchRequest, SearchResponse, SearchResult)
+- [x] Implement Input Validation (Min query length, `top_k` bounds 1-50)
+- [x] Implement FastAPI `POST /rag/search` route
+- [x] Refactor `retrieval.py` with "Fail Fast" logic for empty queries
+- [x] Integrate `EmbeddingModelSingleton` for query vectorization
+- [x] Orchestrate MongoDB Atlas `$vectorSearch` with score metadata projection
+- [x] Add structured error handling (Try/Except) to keep the API alive during provider outages
+- [x] Add `scripts/smoke_test_retrieval.py` for automated verification
 
 ## Validation
 
-Planned validation:
+Verified with the following flow:
+1. Start server: `uvicorn app.main:app`
+2. Run health check: `Invoke-RestMethod -Uri http://127.0.0.1:8000/health`
+3. Run smoke test suite: `python scripts/smoke_test_retrieval.py`
 
-```bash
-py src/rag/build_embeddings.py --limit 3
-py src/rag/build_embeddings.py
-```
+Evidence shows:
+- Queries are successfully vectorized via Gemini.
+- Atlas returns correct chunks based on semantic meaning (not just keywords).
+- Invalid inputs (empty strings, large `top_k`) are correctly rejected by Pydantic (422 status).
 
 ## Data/Behavior Impact
 
-- [x] Behavior change (adds Phase 2 RAG embedding matrix + external API calls)
-- [x] Data schema change (adds `embedding`, `embedding_model`, and `embedded_at` to chunks collection)
-
-## Risk and Rollback
-
-- Risk level: medium (introduces external API dependency and rate limits)
-- Rollback plan: Revert PR and strip embedding fields from `chunks` if necessary.
+- [x] New API Layer: The project is now a runnable web service, not just a script pipeline.
+- [x] No side-effects on data (Read-only phase).
 
 ## Checklist
 
-- [ ] PR is one logical change (Phase 2 RAG embedding pipeline)
-- [x] Branch name follows convention (`feat/*`, `fix/*`, `docs/*`, `spike/*`, etc.)
-- [ ] Commit message follows project style
-- [ ] No secrets added (verify `.env` is ignored)
-- [ ] Logs/errors are clear for debugging
+- [x] PR is one logical change (Phase 3 Retrieval API)
+- [x] Branch name follows convention (`feat/rag-retrieval`)
+- [x] Code includes docstrings (Google/Custom format)
+- [x] Validation results attached to the PR

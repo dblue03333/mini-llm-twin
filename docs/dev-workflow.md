@@ -71,6 +71,20 @@ Why: running file paths directly can fail with `ModuleNotFoundError: No module n
 - Treat exposed credentials as compromised and rotate immediately.
 - Keep local artifacts in `data/` and do not commit generated JSONL/state files.
 
+## RAG Phase 3 Validation (Retrieval API Pattern)
+
+For the API implementation phase, validate the "Web -> DB" bridge:
+
+1. **Server Test:** `uvicorn app.main:app` (Verify startup logs)
+2. **Schema Test:** Visit `/docs` and verify the `SearchRequest` model has `ge=1, le=50` constraints on `top_k`.
+3. **End-to-End Test:** `python scripts/smoke_test_retrieval.py`
+4. **Resilience Test:** Send a query while MongoDB or Gemini is disconnected (manually simulate via env removal) to confirm the API returns `[]` instead of `500 Internal Server Error`.
+
+PR evidence should show:
+- Smoke test output identifying `Status: 200` for multiple queries.
+- Latency measurements (averages < 1s for embedding + search).
+- Correct semantic relevance (e.g., query about "Notion" returns Notion chunks).
+
 ## Quality Gate (Minimum)
 
 Before opening PR:
@@ -79,6 +93,8 @@ Before opening PR:
 2. Logs include meaningful counters and errors.
 3. Output files/state are verified for expected changes.
 4. Docs/PR notes reflect behavior changes.
+5. **API Layer:** New endpoints have Pydantic validation and consistent response schemas.
+6. **AI Quality:** Retrieval "makes sense" (relevant chunks are in the top 3).
 
 ## Warehouse Job Validation (Phase 2 Pattern)
 
