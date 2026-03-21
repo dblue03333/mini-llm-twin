@@ -1,55 +1,38 @@
 ## Summary
 
-Phase 3 (Retrieval API, completed): Implemented the semantic search layer using FastAPI, Pydantic, and MongoDB Atlas Vector Search. This turns the embedded "memory" from Phase 2 into an accessible web service.
+Phase 4 (Generation API, In-Progress): Implementing the LLM-driven "Answer Synthesis" layer. This phase transforms the raw document chunks from Phase 3 into a natural language "AI Twin" response, grounded in the retrieved context.
 
 ## Problem
 
-- In Phase 2, we successfully embedded chunks into MongoDB, but there was no way for an external system (frontend/mobile) to query them.
-- Raw database queries are dangerous and lack validation. We need an "API Contract" that enforces data types and provides a clean interface for search.
-- The retrieval must be resilient—handling missing data, large search volumes, and API failures gracefully.
+- In Phase 3, we retrieved raw document chunks, but users need a natural language answer, not just a list of search results.
+- Without a "Grounding" layer, LLMs are prone to hallucinations (making up answers).
+- We need a resilient "Orchestrator" that manages the flow from Retrieval → Context Mapping → Prompt Construction → LLM Generation.
 
-## Scope
+## Progress (Phase 4 Tasks)
 
-- In scope:
-  - `app/api.py` (Pydantic request/response schemas, contract enforcement)
-  - `app/main.py` (FastAPI initialization and `/rag/search` route)
-  - `src/rag/retrieval.py` (The "Search Engine": query embedding + Atlas Vector Search orchestration)
-  - Validation: Smoke tests for latency and schema accuracy.
-- Out of scope:
-  - Phase 4 (LLM Generation and Answer synthesis)
-  - Phase 5 (Production deployment/Dockerization)
+- [x] Create `src/rag/generation.py`: The core generation module.
+- [x] Context Mapping logic (Step 2 - Serialization): Implemented `format_chunks_to_context` with clear delimiters to help the AI distinguish between multiple sources.
+- [x] Prompt Templating logic (Step 3 - Grounding): Created a strict system-instruction template that forces the AI to use only provided context.
+- [x] Abstract `LLMProvider` interface: Established a model-agnostic strategy pattern for generation.
+- [x] `GeminiLLMProvider` implementation: Integrated Google's Gemini API (flash model) as our primary generation engine.
+- [x] `run_rag_pipeline` Orchestrator (Step 4 - The Glue): Implemented the end-to-end data flow using Functional Dependency Injection.
 
-## Changes
+## Remaining for Phase 4 Completion
 
-- [x] Create Pydantic schemas in `api.py` (SearchRequest, SearchResponse, SearchResult)
-- [x] Implement Input Validation (Min query length, `top_k` bounds 1-50)
-- [x] Implement FastAPI `POST /rag/search` route
-- [x] Refactor `retrieval.py` with "Fail Fast" logic for empty queries
-- [x] Integrate `EmbeddingModelSingleton` for query vectorization
-- [x] Orchestrate MongoDB Atlas `$vectorSearch` with score metadata projection
-- [x] Add structured error handling (Try/Except) to keep the API alive during provider outages
-- [x] Add `scripts/smoke_test_retrieval.py` for automated verification
+- [ ] Define Pydantic request/response schemas for the `/rag/ask` endpoint (Answer + Trace).
+- [ ] Implement Token/Character limits for the context window (Protecting costs and memory).
+- [ ] Structured Citation mapping (Linking bits of the answer back to specific document metadata).
+- [ ] Add FastAPI `POST /rag/ask` route to expose the generator to the web.
+- [ ] Latency & Error logging for the generation pipeline.
 
-## Validation
+## Validation Plan
 
-Verified with the following flow:
-1. Start server: `uvicorn app.main:app`
-2. Run health check: `Invoke-RestMethod -Uri http://127.0.0.1:8000/health`
-3. Run smoke test suite: `python scripts/smoke_test_retrieval.py`
-
-Evidence shows:
-- Queries are successfully vectorized via Gemini.
-- Atlas returns correct chunks based on semantic meaning (not just keywords).
-- Invalid inputs (empty strings, large `top_k`) are correctly rejected by Pydantic (422 status).
-
-## Data/Behavior Impact
-
-- [x] New API Layer: The project is now a runnable web service, not just a script pipeline.
-- [x] No side-effects on data (Read-only phase).
+- [ ] Write integration test script: `scripts/test_rag_generation.py` to verify grounded responses.
+- [ ] Perform "Hallucination Stress Test" (Querying topics NOT in the database to ensure the "I don't know" behavior works).
 
 ## Checklist
 
-- [x] PR is one logical change (Phase 3 Retrieval API)
-- [x] Branch name follows convention (`feat/rag-retrieval`)
-- [x] Code includes docstrings (Google/Custom format)
-- [x] Validation results attached to the PR
+- [x] Logic is decoupled and testable (Strategy pattern used for LLM).
+- [x] Code follows the "Elite Engineering" protocol (Docstrings, type hints).
+- [x] Branch name follows convention (`feat/rag-generation`).
+- [ ] Validation suite complete (Pending).
