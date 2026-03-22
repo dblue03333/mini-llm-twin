@@ -2,7 +2,8 @@ from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 from google import genai
 from src.config import GEMINI_API_KEY
-
+from pydantic import BaseModel, Field
+from typing import List, Optional
 class LLMProvider(ABC):
     """
     Interface for any Large Language Model.
@@ -27,6 +28,21 @@ class GeminiLLMProvider(LLMProvider):
             contents=prompt
         )
         return response.text
+
+
+class Citation(BaseModel):
+    """Refers to the specific source used to generate the answer."""
+    source_id: str
+    text_snippet: str
+    score: float
+
+class RAGResponse(BaseModel):
+    """The structured output of our Generation pipeline."""
+    answer: str
+    citations: List[Citation]
+    retrieval_time_ms: float
+    llm_time_ms: float
+
 
 def format_chunks_to_context(chunks: List[Dict[str, Any]]) -> str:
     """
@@ -90,18 +106,32 @@ def run_rag_pipeline(
     The end-to-end RAG Orchestrator.
     Ties together Retrieval, Context Mapping, Templating, and Generation.
     """
-    # 1. RETRIEVAL (Phase 3)
-    # The retrieval_func is likely retrieve_chunks from retrieval.py
+
+    start_retrieval = time.time()
     chunks = retrieval_func(query)
-    
-    # 2. CONTEXT MAPPING (Step 2)
+    retrieval_time_ms = (time.time() - start_retrieval) * 1000
+
+    citations = [
+        Citation(
+            source_id=chunk.get("chunk_id", "unknown"),
+            text_snippet=chunk.get("text", "")[:200] + "...", # Small preview
+            score=chunk.get("score", 0.0)
+        )
+        for chunk in chunks
+    ]
+
     context = format_chunks_to_context(chunks)
-    
-    # 3. PROMPT TEMPLATING (Step 3)
+
     full_prompt = create_rag_prompt(query, context)
     
-    # 4. LLM GENERATION (Step 4)
-    response_text = llm.generate_response(full_prompt)
-    
-    return response_text
+    start_llm = time.time()
+    answer = llm.generate_response(full_prompt)
+    llm_time = (time.time() - start_llm) * 1000 
+
+    return RAGResponse(
+        answer=answer,
+        citations=citations,
+        retrieval_time_ms=round(retrieval_time_ms, 2),
+        llm_time_ms=round(llm_time, 2)
+    )
 
