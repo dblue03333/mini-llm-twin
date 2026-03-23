@@ -16,6 +16,7 @@ graph TD
     Silver -->|ETL via Pymongo| MongoSilver[("MongoDB\n(Document Store)")]
 
     %% Processing Pipeline
+    MongoSilver -->|Semantic Chunking| Chunks[("Chunk Collection\n(MongoDB)")]
     Chunks -->|SHA-256 Hash Check| Cache{"Already Embedded?"}
     Cache -- No --> EmbeddingAPI[("Google Gemini\nEmbedding API")]
     Cache -- Yes --> Skip[("Skip Re-embedding")]
