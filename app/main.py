@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -10,7 +11,6 @@ from src.rag.generation import (
     run_rag_pipeline
 )
 
-
 class RAGRequest(BaseModel):
     query: str = Field(..., min_length=1, description="The user question")
     top_k: int = Field(default=5, ge=1, le=10, description="Max context chunks to retrieve")
@@ -19,6 +19,14 @@ llm_provider = GeminiLLMProvider()
 
 app = FastAPI(title='mini-llm-twin', version='0.1.0')
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allowing all for now during testing
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get('/health')
 def health():
     return {'status': 'ok'}
@@ -26,7 +34,7 @@ def health():
 @app.post('/rag/ask', response_model=RAGResponse)
 def ask(request: RAGRequest):
     """
-    The final 'Voice' of your AI Twin.
+    The final 'Voice' of AI Twin.
     Executes the full RAG pipeline: Retrieval -> Generation.
     """
     # We pass the query, our search function, and our LLM provider

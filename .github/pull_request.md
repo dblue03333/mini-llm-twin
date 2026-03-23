@@ -1,34 +1,49 @@
-## Summary (Phase 4 - Complete)
+## Summary (Phase 5 - RAG Polish, Validation & Docs)
 
-Phase 4 (Generation API): Successfully bridged the Retrieval layer (Phase 3) with the LLM Generation layer. The system can now synthesize natural language answers that are strictly grounded in retrieved documents, complete with citation tracing and latency observability.
+This Pull Request finalizes the **RAG (Retrieval-Augmented Generation) Phase**, transforming the working pipeline into a production-ready, interview-ready system. 
 
-## Problem
+It covers architectural decisions, data integrity improvements, serving layer optimization, and deployment readiness (Phase 6 preparation).
 
-- In Phase 3, we retrieved raw document chunks, but users need a natural language answer, not just a list of search results.
-- Without a "Grounding" layer, LLMs are prone to hallucinations (making up answers).
-- We need a resilient "Orchestrator" that manages the flow from Retrieval → Context Mapping → Prompt Construction → LLM Generation.
+## Key Deliverables
 
-## Progress (Phase 4 Tasks)
+### 1. Data Engineering & Integrity
+- **Medallion Architecture:** Implemented **Bronze/Silver** layers for structured data ingestion.
+- **SHA-256 Hashing:** Introduced content-based hashing to ensure data immutability and prevent redundant re-embeddings.
+- **Idempotent Workflows:** Designed stable record IDs (`source:id:chunk_index`) and unique compound indexes in MongoDB to guarantee **zero data duplication** on re-runs.
+- **Version Control:** Delta-loading logic based on `updated_at` timestamps to avoid stale data regression.
 
-- [x] Create `src/rag/generation.py`: The core generation module.
-- [x] Context Mapping logic (Step 2 - Serialization): Implemented `format_chunks_to_context` with clear delimiters to help the AI distinguish between multiple sources.
-- [x] Prompt Templating logic (Step 3 - Grounding): Created a strict system-instruction template that forces the AI to use only provided context.
-- [x] Abstract `LLMProvider` interface: Established a model-agnostic strategy pattern for generation.
-- [x] `GeminiLLMProvider` implementation: Integrated Google's Gemini API (flash model) as our primary generation engine.
-- [x] `run_rag_pipeline` Orchestrator (Step 4 - The Glue): Implemented the end-to-end data flow using Functional Dependency Injection.
-- [x] Define Pydantic request/response schemas for the `/rag/ask` endpoint (Answer + Trace).
-- [x] Implement citation mapping for source verifiability.
-- [x] Add FastAPI `POST /rag/ask` route to expose the generator to the web.
-- [x] Real-time latency tracking for both retrieval and generation steps.
+### 2. RAG Architecture
+- **Vector Search Indexing:** Integrated **MongoDB Atlas Vector Search** using the **HNSW (Hierarchical Navigable Small World)** algorithm for low-latency similarity search.
+- **Advanced Retrieval:** Implemented `$vectorSearch` with **metadata pre-filtering** (e.g., `is_deleted: False`) and score projection.
+- **Prompt Engineering:** Hardened prompts to **prevent hallucinations** (Grounding) and ensure the AI only answers based on provided context.
+- **LLM Selection:** Switched to **Gemini 1.5 Flash (3.1 flash-lite-preview)** for optimized speed/cost for RAG workloads.
 
-## Validation Plan
+### 3. Backend & System Design
+- **Singleton Pattern:** Used for `EmbeddingModelSingleton` and `GeminiLLMProvider` to ensure single-instance API client initialization and memory efficiency.
+- **Strategy Pattern:** Implemented abstract base classes to allow for model-agnosticism (easy to swap between Gemini, OpenAI, etc.).
+- **Resilience:** Integrated **Exponential Backoff** and retry logic for API calls to handle rate limits and transient network failures.
+- **Validation:** Extensive use of **Pydantic** models for data integrity across all serving layers.
 
-- [ ] Manual test: Perform the first-ever "Ask" query to verify citations and grounding.
-- [ ] Perform "Hallucination Stress Test" (Querying topics NOT in the database to ensure the "I don't know" behavior works).
+### 4. Deployment Readiness (Phase 6 Early Access)
+- **Containerization:** Created a **Dockerfile** and `.dockerignore` to package the FastAPI application.
+- **Secure Preview:** Implemented **Cloudflare Tunneling** (`cloudflared`) to expose the local API securely for remote testing and recruiter demos.
+
+## Tasks Completed
+- [x] Create mini eval set (10 questions + expected source/topic)
+- [x] Update architecture with Bronze/Silver logic
+- [x] Add SHA-256 hashing for content verification
+- [x] Implement Idempotent Upsert logic in MongoDB loader
+- [x] Add Troubleshooting section in README
+- [x] Dockerize application for deployment
+- [x] Setup Cloudflare Tunnel for external demo
+
+## Evaluation
+- Validated with an **Evaluation Set** of 10 real-world queries.
+- Verified stable rerun behavior (zero duplicates on multiple ingestion runs).
+- Tested API resilience with simulated network failures (Successful retry).
 
 ## Checklist
-
-- [x] Logic is decoupled and testable (Strategy pattern used for LLM).
-- [x] Code follows the "Elite Engineering" protocol (Docstrings, type hints).
-- [x] Branch name follows convention (`feat/rag-generation`).
-- [x] Metadata mapping (Citations) implemented correctly.
+- [x] PR is one logical change (RAG Polish & Docs)
+- [x] Branch follows convention (`feat/rag-generation`)
+- [x] README and Docs are recruiter-ready
+- [x] Local tests passed

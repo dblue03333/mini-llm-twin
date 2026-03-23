@@ -32,6 +32,7 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+.antigravityignore
 
 # ---- IDE / editor ----
 .vscode/

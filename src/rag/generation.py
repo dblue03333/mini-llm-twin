@@ -1,4 +1,6 @@
 from typing import List, Dict, Any
+import time
+
 from abc import ABC, abstractmethod
 from google import genai
 from src.config import GEMINI_API_KEY
@@ -19,15 +21,25 @@ class GeminiLLMProvider(LLMProvider):
     """
     def __init__(self, api_key: str = GEMINI_API_KEY):
         self.client = genai.Client(api_key=api_key)
-        self.model_id = "gemini-1.5-flash"  # Speed optimized for RAG
+        self.model_id = "gemini-3.1-flash-lite-preview"  # Speed optimized for RAG
 
     def generate_response(self, prompt: str) -> str:
-        # The core inference call
-        response = self.client.models.generate_content(
-            model=self.model_id,
-            contents=prompt
-        )
-        return response.text
+        try:
+            # The core inference call
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt
+            )
+            
+            # Safety check: Sometimes models return empty or blocked responses
+            if not response.candidates or not response.candidates[0].content.parts:
+                return "The AI was unable to generate a response (it might have been blocked or empty)."
+
+            return response.text
+        except Exception as e:
+                # Log the error to the terminal so we can see it during development
+                print(f"ERROR: Gemini LLM Provider failed: {e}")
+                return f"Internal failure in LLM Generation: {str(e)}"
 
 
 class Citation(BaseModel):
@@ -101,37 +113,47 @@ def run_rag_pipeline(
     query: str, 
     retrieval_func, 
     llm: LLMProvider
-) -> str:
+) -> RAGResponse:
     """
     The end-to-end RAG Orchestrator.
     Ties together Retrieval, Context Mapping, Templating, and Generation.
     """
 
-    start_retrieval = time.time()
-    chunks = retrieval_func(query)
-    retrieval_time_ms = (time.time() - start_retrieval) * 1000
+    try:
+        start_retrieval = time.time()
+        chunks = retrieval_func(query)
+        retrieval_time_ms = (time.time() - start_retrieval) * 1000
 
-    citations = [
-        Citation(
-            source_id=chunk.get("chunk_id", "unknown"),
-            text_snippet=chunk.get("text", "")[:200] + "...", # Small preview
-            score=chunk.get("score", 0.0)
+        citations = [
+            Citation(
+                source_id=chunk.get("chunk_id", "unknown"),
+                text_snippet=chunk.get("text", "")[:200] + "...", # Small preview
+                score=chunk.get("score", 0.0)
+            )
+            for chunk in chunks
+        ]
+
+        context = format_chunks_to_context(chunks)
+
+        full_prompt = create_rag_prompt(query, context)
+        
+        start_llm = time.time()
+        answer = llm.generate_response(full_prompt)
+        llm_time = (time.time() - start_llm) * 1000 
+
+        return RAGResponse(
+            answer=answer,
+            citations=citations,
+            retrieval_time_ms=round(retrieval_time_ms, 2),
+            llm_time_ms=round(llm_time, 2)
         )
-        for chunk in chunks
-    ]
-
-    context = format_chunks_to_context(chunks)
-
-    full_prompt = create_rag_prompt(query, context)
-    
-    start_llm = time.time()
-    answer = llm.generate_response(full_prompt)
-    llm_time = (time.time() - start_llm) * 1000 
-
-    return RAGResponse(
-        answer=answer,
-        citations=citations,
-        retrieval_time_ms=round(retrieval_time_ms, 2),
-        llm_time_ms=round(llm_time, 2)
-    )
+    except Exception as e:
+        print(f"CRITICAL PIPELINE FAILURE: {e}")
+        # Return a safe error response so the API doesn't 500
+        return RAGResponse(
+            answer=f"I encountered a technical error while processing your request: {str(e)}",
+            citations=[],
+            retrieval_time_ms=0,
+            llm_time_ms=0
+        )
 
