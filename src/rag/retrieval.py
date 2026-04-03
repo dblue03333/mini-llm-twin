@@ -66,6 +66,13 @@ def retrieve_chunks(query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
             ]
         results = list(chunk_collection.aggregate(pipeline))
         return results
+        
+        # Staff Engineering Move: Score Thresholding
+        # Cosine similarity for Gemini embeddings often sits at 0.7 - 0.82 even for completely unrelated text.
+        # We only return results that are highly relevant (e.g., score >= 0.86).
+        # filtered_results = [res for res in results if res.get("score", 0) >= 0.86]
+        
+        # return filtered_results
     except Exception as e:
         log.error(f"Retrieval failed: {e}")
     return []
