@@ -28,7 +28,12 @@ def get_stale_chunks(collection: collection, limit: Optional[int] = None) -> lis
     If we want to force re-embedding on text change, we'd compare hashes.
     """
     # Find chunks missing the embedding field
-    flt = {'embedding': {"$exists": False}}
+    flt = {
+        "$or": [
+            {'embedding': {"$exists": False}},
+            {'text_hash': {"$exists": False}}
+        ]
+    }
     cursor = collection.find(flt)
     if limit:
         cursor = cursor.limit(limit)
@@ -36,7 +41,7 @@ def get_stale_chunks(collection: collection, limit: Optional[int] = None) -> lis
 
 def compute_hash(text: str) -> str:
     """Helper to create a fingerprint of the text."""
-    return hashlib.md5(text.encode()).hexdigest()
+    return hashlib.sha256(text.encode()).hexdigest()
 
 def batch_chunks(chunks: list[dict], batch_size: int):
     """

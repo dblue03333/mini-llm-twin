@@ -107,8 +107,6 @@ if __name__ == "__main__":
   "metadata": {"source": "notion"}
 }
 
-
-
     records = build_chunk_records_from_document(doc)
     print(records)
     # print(records[0])
