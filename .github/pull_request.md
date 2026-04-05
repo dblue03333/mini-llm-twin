@@ -1,51 +1,180 @@
-## Summary (Phase 6 - Deployment & Portfolio Integration)
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║  LEVEL HISTORY                                           ║
+  ║  ✅ Intern  — DE → RAG → Deploy (Ngrok HomeLab, done)   ║
+  ║  🔄 Junior  — Phase 1: Multi-Source Data Engineering     ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
 
-This Pull Request transitions the project from a local development environment into a **Live Production Environment.** It transforms the Mac Mini into a high-performance HomeLab host for the AI Twin, securely accessible from the public internet.
+## Summary — Junior Level · Phase 1: Multi-Source Data Engineering
 
-It covers Docker containerization, networking orchestration with Cloudflare Tunnels, and the end-to-end integration into the portfolio frontend.
+This PR introduces the **Multi-Source Ingestion Architecture** — a scalable, object-oriented ETL pipeline that funnels data from Notion, Obsidian, and GitHub into a unified Silver layer following the Medallion Architecture.
+
+> **Why this matters for the AI Twin:** The Intern version was single-source (Notion only). This phase upgrades the knowledge base to multi-source, giving the twin a richer, more complete context about its owner across all three primary knowledge surfaces.
+
+---
+
+## Problem
+
+The current `scripts/ingest_notes.py` is a top-level procedural script. It cannot be instantiated, reused, or extended without code duplication. Adding Obsidian or GitHub ingestion would require copy-pasting the entire script, breaking the DRY principle and making the Silver layer impossible to unify programmatically.
+
+---
+
+## Scope
+
+**In scope:**
+- `BaseIngestor` abstract class (`fetch_raw`, `normalize`, `export_silver`)
+- `NotionIngestor` refactored from `ingest_notes.py`
+- `ObsidianIngestor` using `pathlib` for local `.md` files
+- `GitHubIngestor` using GitHub REST API for READMEs and docs
+- `scripts/ingest_all.py` orchestrator
+- `SilverRecord` Pydantic schema shared across all ingestors
+
+**Out of scope:**
+- RAG chunking or embedding changes
+- MongoDB loader changes
+- Frontend or API changes
+
+---
 
 ## Key Deliverables
 
-### 1. Data Engineering & Integrity
-- **Medallion Architecture:** Implemented **Bronze/Silver** layers for structured data ingestion.
-- **SHA-256 Hashing:** Introduced content-based hashing to ensure data immutability and prevent redundant re-embeddings.
-- **Idempotent Workflows:** Designed stable record IDs (`source:id:chunk_index`) and unique compound indexes in MongoDB to guarantee **zero data duplication** on re-runs.
-- **Version Control:** Delta-loading logic based on `updated_at` timestamps to avoid stale data regression.
+### 1. Ingestion Architecture (`src/warehouse/ingestion/`)
 
-### 2. RAG Architecture
-- **Vector Search Indexing:** Integrated **MongoDB Atlas Vector Search** using the **HNSW (Hierarchical Navigable Small World)** algorithm for low-latency similarity search.
-- **Advanced Retrieval:** Implemented `$vectorSearch` with **metadata pre-filtering** (e.g., `is_deleted: False`) and score projection.
-- **Prompt Engineering:** Hardened prompts to **prevent hallucinations** (Grounding) and ensure the AI only answers based on provided context.
-- **LLM Selection:** Switched to **Gemini 1.5 Flash (3.1 flash-lite-preview)** for optimized speed/cost for RAG workloads.
+- **`BaseIngestor` (ABC):** Enforces `fetch_raw()` → `normalize()` → `export_silver()` contract. Prevents silent drift between ingestors.
+- **`SilverRecord` (Pydantic):** Single schema for `{id, type, text, created_at, updated_at, metadata}`. Locked before any ingestor is written.
+- **Separate Bronze paths:** Each source writes to its own Bronze file (`notion_raw.jsonl`, `obsidian_raw.jsonl`, `github_raw.jsonl`).
+- **Shared Silver path:** All sources merge into `data/silver/documents.jsonl` with dedup by `id`.
 
-### 3. Backend & System Design
-- **Singleton Pattern:** Used for `EmbeddingModelSingleton` and `GeminiLLMProvider` to ensure single-instance API client initialization and memory efficiency.
-- **Strategy Pattern:** Implemented abstract base classes to allow for model-agnosticism (easy to swap between Gemini, OpenAI, etc.).
-- **Resilience:** Integrated **Exponential Backoff** and custom retry logic to handle **[Errno 60] TCP Timeouts** and 429 rate limits, ensuring 99.9% inference uptime.
-- **Validation:** Extensive use of **Pydantic** models for data integrity across all serving layers.
+### 2. NotionIngestor (Refactor)
 
-### 4. Hosting & Portfolio Integration (Phase 6)
-- **Containerization (Docker):** Created a **Dockerfile** and `.dockerignore` to package the FastAPI application into a portable, production image. 
-- **Production Server (Mac Mini HomeLab):** Configured the Mac Mini to host the AI API, exposing it to port 8000.
-- **Secure Networking (Ngrok Permanent Tunnel):** Implemented a secure **Ngrok Static Domain** tunnel to allow the internet to securely call the private Mac Mini API without opening inbound router ports.
-- **Cross-Origin Resource Sharing (CORS):** Hardened `app/main.py` with `CORSMiddleware` and injected the `ngrok-skip-browser-warning` bypass header into the frontend fetch requests.
-- **Frontend Marriage:** Successfully updated `portfolio/js/chat.js` to point to the live public Ngrok URL, completing the end-to-end user loop.
+- All logic from `scripts/ingest_notes.py` migrated into a class.
+- State management (`data/state/notion_state.json`) lives inside the ingestor — not at module level.
+- `argparse` removed from module level; controlled by `ingest_all.py` only.
+
+### 3. ObsidianIngestor
+
+- Reads local `.md` files via `pathlib.Path.rglob("*.md")`.
+- Extracts YAML frontmatter (if present) as metadata.
+- State: file `mtime` or content hash to detect changes.
+
+### 4. GitHubIngestor
+
+- Uses GitHub REST API (`/repos/{owner}/{repo}/contents/`) to list repos and pull Markdown files.
+- Handles pagination and 429 rate limits with exponential backoff (consistent with existing `request_json` pattern).
+- State: file `sha` from GitHub API response (already provided, no extra hashing needed).
+
+### 5. Orchestrator (`scripts/ingest_all.py`)
+
+- Loops through `[NotionIngestor(), ObsidianIngestor(), GitHubIngestor()]`.
+- Each ingestor runs inside a `try/except` — one failure does **not** abort the others.
+- Logs per-ingestor summary (`fetched / processed / skipped / errors`) and a final unified total.
+
+---
+
+## Validation Evidence
+
+### Per-Ingestor (run each independently)
+
+```bash
+python -m src.warehouse.ingestion.notion_ingestor
+python -m src.warehouse.ingestion.obsidian_ingestor
+python -m src.warehouse.ingestion.github_ingestor
+```
+
+Expected output format:
+```
+INFO | [NotionIngestor] fetched=12 processed=3 skipped=9 errors=0
+```
+
+Rerun on unchanged data:
+```
+INFO | [NotionIngestor] fetched=12 processed=0 skipped=12 errors=0
+```
+
+### Orchestrator
+
+```bash
+python scripts/ingest_all.py
+python scripts/ingest_all.py  # rerun for idempotency check
+```
+
+Expected final log:
+```
+INFO | [Orchestrator] notion: processed=3 skipped=9 | obsidian: processed=5 skipped=2 | github: processed=8 skipped=0 | total_new=16
+```
+
+### Silver Record Spot-Check
+
+Paste 2–3 records from `data/silver/documents.jsonl` to confirm schema compliance:
+```json
+{"id": "...", "type": "note", "text": "...", "created_at": "...", "updated_at": "...", "metadata": {"source": "notion", "title": "..."}}
+```
+
+---
+
+## Data / Behavior Impact
+
+- `data/silver/documents.jsonl` will grow with new records from Obsidian and GitHub.
+- Existing Notion records: **unchanged** (same IDs, same logic, just refactored).
+- MongoDB Silver collection: **not touched in this PR** — loader is a separate step.
+- RAG chunker: **no impact** — Silver schema is backward-compatible.
+
+---
+
+## Risk & Rollback
+
+| Risk | Mitigation |
+|------|-----------|
+| GitHub API rate limit (60 req/hr unauthenticated) | Use `GITHUB_TOKEN` env var; exponential backoff already in `request_json` |
+| Obsidian vault path not configured | Read from `.env` / config; fail fast with clear error message |
+| Silver file corruption on concurrent writes | Single-process orchestrator; sequential not parallel |
+| Schema drift between ingestors | `SilverRecord` Pydantic model enforces at `normalize()` return |
+
+**Rollback:** Delete new Bronze files and the new entries in `data/silver/documents.jsonl`. Rerun `scripts/ingest_notes.py` (the old script, kept until this PR is fully verified).
+
+---
 
 ## Tasks Completed
-- [x] Create Evaluation Suite (10 Questions/Targets)
-- [x] Implement SHA-256 Data Integrity Hashing
-- [x] Dockerize FastAPI RAG Engine & Fix Port Conflicts
-- [x] Implement Exponential Backoff for [Errno 60] Timeouts
-- [x] Deploy HomeLab Ngrok Permanent Tunnel
-- [x] Connect Portfolio Chat UI with Bypass Headers
 
-## Evaluation & Production Readiness
-- Successfully passed the **10-question evaluation set** with the AI twin correctly refusing context-free queries (Grounding).
-- Verified **zero-downtime integration** with the main portfolio chat widget.
-- Monitored Docker logs to confirm successful `OPTIONS` preflight and `POST` requests from the internet.
+- [ ] Define `SilverRecord` Pydantic schema
+- [ ] Implement `BaseIngestor` abstract class
+- [ ] Refactor `NotionIngestor` from `ingest_notes.py`
+- [ ] Implement `ObsidianIngestor`
+- [ ] Implement `GitHubIngestor`
+- [ ] Build `scripts/ingest_all.py` orchestrator
+- [ ] Validate each ingestor independently (first run + rerun)
+- [ ] Validate orchestrator (full run + rerun)
+- [ ] Update `docs/dev-workflow.md`
+
+---
 
 ## Checklist
-- [x] PR is one logical change (RAG Polish & Docs)
-- [x] Branch follows convention (`feat/rag-generation`)
-- [x] README and Docs are recruiter-ready
-- [x] Local tests passed
+
+- [ ] PR is one logical change (Multi-Source Ingestion Architecture)
+- [ ] Branch follows convention (`feat/base-ingestor-scaffold` → merge → next branch)
+- [ ] No global-level `argparse` in ingestor modules
+- [ ] Each ingestor has its own state file
+- [ ] `SilverRecord` schema is defined and used by all ingestors
+- [ ] Rerun idempotency verified for all 3 sources
+- [ ] PR evidence includes counter logs and spot-checked Silver records
+
+---
+
+<details>
+<summary>📦 Intern Level — Completed Milestone (click to expand)</summary>
+
+**Phase 6 — Deployment & Portfolio Integration**
+
+Transitioned from local dev to Live Production:
+- **Medallion Architecture:** Bronze/Silver layers for Notion ingestion
+- **SHA-256 Hashing:** Content-based dedup
+- **MongoDB Atlas Vector Search:** HNSW indexing with metadata pre-filtering
+- **Singleton + Strategy Patterns** for LLM/Embedding providers
+- **Exponential Backoff** for TCP timeouts and 429s
+- **Docker + Ngrok Static Domain:** HomeLab deployment on Mac Mini
+- **Portfolio Integration:** `chat.js` wired to live Ngrok endpoint
+
+All 10 evaluation questions passed. Zero-downtime deployment. ✅
+
+</details>

@@ -17,6 +17,11 @@ This repo follows a production-style workflow: stable `main`, short-lived branch
   - `feat/notion-ingest-hardening`
   - `fix/title-property-fallback`
   - `spike/rag-intern`
+  - `feat/base-ingestor-scaffold` ← Junior Phase 1
+  - `feat/notion-ingestor-class`
+  - `feat/obsidian-ingestor`
+  - `feat/github-ingestor`
+  - `feat/ingest-orchestrator`
 
 ### Parallel Branches
 
@@ -157,3 +162,89 @@ PR evidence should show:
 - rerun is idempotent (0 chunks processed if nothing changed since last hash)
 - logs include embedding summary (`Created/Updated`, `Skipped`, `Failed`)
 
+---
+
+## Junior Level — Phase 1: Multi-Source Data Engineering
+
+### Architecture Contract (Define Before Coding)
+
+Before implementing any ingestor, the shared Silver Schema **must be locked** as a Pydantic model:
+
+```python
+# src/warehouse/ingestion/schemas.py
+class SilverRecord(BaseModel):
+    id: str
+    type: str           # "article", "note", "readme"
+    text: str
+    created_at: str
+    updated_at: str
+    metadata: dict      # {source, title, path?, url?}
+```
+
+This model is the single source of truth. Each ingestor's `normalize()` must return a `SilverRecord`. If the schema drifts between ingestors, the RAG chunker downstream will break silently.
+
+### Bronze Path Convention
+
+Each source writes to its own Bronze file to keep runs independent:
+
+```
+data/bronze/notion_raw.jsonl
+data/bronze/obsidian_raw.jsonl
+data/bronze/github_raw.jsonl
+```
+
+All sources write to the shared Silver file:
+
+```
+data/silver/documents.jsonl
+```
+
+The Silver file is append-plus-dedup — each ingestor must guard against duplicate `id` entries on re-run.
+
+### Ingestor Validation Pattern
+
+For each new ingestor (`NotionIngestor`, `ObsidianIngestor`, `GitHubIngestor`), validate with:
+
+```bash
+# Run one ingestor in isolation first
+python -m src.warehouse.ingestion.<source>_ingestor
+
+# Rerun on unchanged data
+python -m src.warehouse.ingestion.<source>_ingestor
+```
+
+PR evidence must show:
+- `fetched / processed / skipped / errors` counters
+- Bronze file written with raw format (source-specific fields intact)
+- Silver records conform to `SilverRecord` schema (spot-check 2–3 records)
+- Rerun is idempotent — `processed=0, skipped=N` on unchanged data
+
+### Orchestrator Validation Pattern (`ingest_all.py`)
+
+For the final orchestration step, validate with:
+
+```bash
+# Full run
+python scripts/ingest_all.py
+
+# Rerun on unchanged data
+python scripts/ingest_all.py
+```
+
+PR evidence must show:
+- All 3 ingestors complete (including any that encounter 0 new records)
+- Per-ingestor counters logged separately (not merged into one number)
+- One ingestor failing does **not** stop the others (graceful isolation)
+- Final Silver JSONL contains records from all 3 sources
+- Rerun is idempotent across all sources
+
+### Quality Gate — Junior Phase 1 (Minimum)
+
+Before opening any Phase 1 PR:
+
+1. `BaseIngestor` is an `ABC` — `fetch_raw()`, `normalize()`, `export_silver()` raise `NotImplementedError` if not overridden.
+2. Each ingestor has its own state file (e.g., `data/state/notion_state.json`, `data/state/github_state.json`).
+3. State management lives **inside** each ingestor, not in the orchestrator.
+4. No global-level `argparse` in ingestor modules (script-level argparse only in `ingest_all.py`).
+5. All ingestors produce Silver records with the **same field names and types** as `SilverRecord`.
+6. Logs use structured counters consistent with existing patterns (`fetched`, `processed`, `skipped`, `errors`).
